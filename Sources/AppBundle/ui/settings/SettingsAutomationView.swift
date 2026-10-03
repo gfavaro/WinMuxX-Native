@@ -25,7 +25,7 @@ struct ShortcutAutomationSettingsView: View {
                 SettingsMultilineField(
                     "After startup",
                     text: $startupCommands,
-                    help: "One command per line. Commands run after WinMuxX finishes starting.",
+                    help: "One command per line. Commands run after WinMuxX-Native finishes starting.",
                     savedValue: config.afterStartupCommand.map { $0.args.description }.joined(separator: "\n")
                 ) { onSaved in
                     saveCommands("after-startup-command", startupCommands, onSaved: onSaved)

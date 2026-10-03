@@ -4,7 +4,7 @@ EXPECTED_CODESIGN_AUTHORITY_PREFIX ?= Authority=Apple Development:
 CODE_SIGN_STYLE ?= Manual
 DEVELOPMENT_TEAM ?=
 BUILD_NUMBER ?= 1
-RELEASE_DIR ?= .release
+RELEASE_DIR ?= .release-native
 RELEASE_TAG ?= v$(VERSION)
 APP_INSTALL_DIR ?= /Applications
 SPARKLE_PUBLIC_KEY ?=
@@ -39,7 +39,7 @@ build:
 	swift build --target AppBundleTests && \
 	rm -rf .debug && \
 	mkdir .debug && \
-	cp -r .build/debug/winmux .debug && \
+	cp -r .build/debug/winmux-native-cli .debug && \
 	cp -r .build/debug/WinMuxApp .debug'
 
 build-clean:
@@ -80,7 +80,7 @@ run-clean:
 
 cli:
 	$(MAKE) build VERSION="$(VERSION)"
-	/bin/bash -lc 'cd "$(CURDIR)" && exec ./.debug/winmux $(ARGS)'
+	/bin/bash -lc 'cd "$(CURDIR)" && exec ./.debug/winmux-native-cli $(ARGS)'
 
 check:
 	/bin/bash -lc 'cd "$(CURDIR)" && \
@@ -93,16 +93,16 @@ check:
 	git diff --exit-code -- Package.resolved'
 
 release:
-	$(MAKE) fork-build VERSION="$(VERSION)" BUILD_NUMBER="$(BUILD_NUMBER)"
+	$(MAKE) native-build VERSION="$(VERSION)" BUILD_NUMBER="$(BUILD_NUMBER)"
 
 install:
-	@echo 'Install .release/WinMuxX.app explicitly. This target never replaces WinMux.app.' >&2
+	@echo 'Install .release-native/WinMuxX-Native.app explicitly. This target never replaces WinMux.app.' >&2
 	@exit 1
 installed: install
 
-.PHONY: fork-build
-fork-build:
-	VERSION="$(VERSION)" BUILD_NUMBER="$(BUILD_NUMBER)" bash script/fork-build.sh
+.PHONY: native-build
+native-build:
+	VERSION="$(VERSION)" BUILD_NUMBER="$(BUILD_NUMBER)" bash script/native-build.sh
 
 clean:
 	/bin/bash -lc 'cd "$(CURDIR)" && rm -rf .build .debug .deps .derived "$(RELEASE_DIR)" WinMux.xcodeproj'

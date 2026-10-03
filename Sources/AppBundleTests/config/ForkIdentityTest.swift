@@ -4,22 +4,22 @@ import XCTest
 
 final class ForkIdentityTest: XCTestCase {
     func testForkIdentityDoesNotUseUpstreamSocketOrState() {
-        XCTAssertEqual(stableWinMuxAppId, "com.gfavaro.winmuxx")
+        XCTAssertEqual(stableWinMuxAppId, "com.gfavaro.winmuxx.native")
         XCTAssertTrue(winMuxAppId.hasPrefix(stableWinMuxAppId))
-        XCTAssertTrue(winMuxAppName.hasPrefix("WinMuxX"))
+        XCTAssertTrue(winMuxAppName.hasPrefix("WinMuxX-Native"))
         XCTAssertTrue(socketPath.contains(winMuxAppId))
         XCTAssertFalse(socketPath.contains("com.zimengxiong"))
-        XCTAssertEqual(forkRepositoryURL, "https://github.com/gfavaro/WinMuxX")
+        XCTAssertEqual(forkRepositoryURL, "https://github.com/gfavaro/WinMuxX-Native")
     }
 
     func testForkConfigurationHasAnIndependentOwnedDirectory() {
-        XCTAssertEqual(generatedConfigDirectoryName, "winmux-gf")
+        XCTAssertEqual(generatedConfigDirectoryName, "winmux-native")
         XCTAssertEqual(generatedConfigFileName, "winmux.toml")
-        XCTAssertEqual(generatedConfigUrl().deletingLastPathComponent().lastPathComponent, "winmux-gf")
-        XCTAssertTrue(legacyConfigCandidateUrls().contains { $0.path.hasSuffix("/winmux/winmux.toml") })
+        XCTAssertEqual(generatedConfigUrl().deletingLastPathComponent().lastPathComponent, "winmux-native")
+        XCTAssertFalse(socketPath.contains("com.gfavaro.winmuxx-"))
     }
 
-    func testAppRenameRetainsTheExistingPersonalForkStateDirectory() {
-        XCTAssertEqual(winMuxAppSupportDirectoryName, "WinMux-GF")
+    func testNativeStateHasIndependentDirectory() {
+        XCTAssertEqual(winMuxAppSupportDirectoryName, "WinMux-Native")
     }
 }

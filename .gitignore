@@ -24,3 +24,5 @@
 # XCode User settings
 xcuserdata/
 xcshareddata/
+
+/.release-native

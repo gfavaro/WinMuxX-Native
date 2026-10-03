@@ -19,3 +19,5 @@ guides above for today's settings and development workflow.
 - [Simplification review](SIMPLIFY_REVIEW.md)
 - [Viabilidade de Spaces nativos](NATIVE_SPACES_FEASIBILITY.md)
 - [Dinky: fluxo de Spaces aproveitável](DINKY_NATIVE_SPACES_REVIEW.md)
+
+Current experimental derivative: [approved native Spaces plan](NATIVE_SPACES_PLAN.md). Preparation still uses the virtual backend.

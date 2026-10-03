@@ -1,3 +1,4 @@
+import Common
 @testable import AppBundle
 import AppKit
 import XCTest
@@ -6,8 +7,8 @@ import XCTest
 final class DoubleSidedWindowsTest: XCTestCase {
     func testBodyClickTargetsPairButDoesNotPassThroughOtherWindows() {
         setUpWorkspacesForTests()
-        let saved = UserDefaults.standard.object(forKey: "doubleSidedWindows")
-        defer { UserDefaults.standard.set(saved, forKey: "doubleSidedWindows") }
+        let saved = nativePreferences.object(forKey: "doubleSidedWindows")
+        defer { nativePreferences.set(saved, forKey: "doubleSidedWindows") }
         var settings = ExperimentalUISettings()
         settings.doubleSidedWindows = true
         config.windowTabs.enabled = true
@@ -51,8 +52,8 @@ final class DoubleSidedWindowsTest: XCTestCase {
 
     func testPairReturnsToTabsWhenThirdWindowJoins() {
         setUpWorkspacesForTests()
-        let saved = UserDefaults.standard.object(forKey: "doubleSidedWindows")
-        defer { UserDefaults.standard.set(saved, forKey: "doubleSidedWindows") }
+        let saved = nativePreferences.object(forKey: "doubleSidedWindows")
+        defer { nativePreferences.set(saved, forKey: "doubleSidedWindows") }
         var settings = ExperimentalUISettings()
         settings.doubleSidedWindows = true
         config.windowTabs.enabled = true
@@ -80,9 +81,9 @@ final class DoubleSidedWindowsTest: XCTestCase {
 
     func testDefaultAndFullscreenKeepExistingBehavior() {
         setUpWorkspacesForTests()
-        let saved = UserDefaults.standard.object(forKey: "doubleSidedWindows")
-        defer { UserDefaults.standard.set(saved, forKey: "doubleSidedWindows") }
-        UserDefaults.standard.removeObject(forKey: "doubleSidedWindows")
+        let saved = nativePreferences.object(forKey: "doubleSidedWindows")
+        defer { nativePreferences.set(saved, forKey: "doubleSidedWindows") }
+        nativePreferences.removeObject(forKey: "doubleSidedWindows")
         XCTAssertFalse(ExperimentalUISettings().doubleSidedWindows)
         config.windowTabs.enabled = true
         let group = Workspace.get(byName: "pair").rootTilingContainer

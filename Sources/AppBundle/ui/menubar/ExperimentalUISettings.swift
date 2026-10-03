@@ -1,26 +1,27 @@
+import Common
 import SwiftUI
 
 struct ExperimentalUISettings {
     var doubleSidedWindows: Bool {
-        get { UserDefaults.standard.bool(forKey: "doubleSidedWindows") }
-        set { UserDefaults.standard.set(newValue, forKey: "doubleSidedWindows") }
+        get { nativePreferences.bool(forKey: "doubleSidedWindows") }
+        set { nativePreferences.set(newValue, forKey: "doubleSidedWindows") }
     }
 
     var indicator: MenuBarIndicator {
-        get { MenuBarIndicator(rawValue: UserDefaults.standard.string(forKey: "menuBarIndicator") ?? "") ?? .icon }
-        set { UserDefaults.standard.set(newValue.rawValue, forKey: "menuBarIndicator") }
+        get { MenuBarIndicator(rawValue: nativePreferences.string(forKey: "menuBarIndicator") ?? "") ?? .icon }
+        set { nativePreferences.set(newValue.rawValue, forKey: "menuBarIndicator") }
     }
 
     var iconAppearance: MenuBarIconAppearance {
         get {
-            guard let value = UserDefaults.standard.string(forKey: "iconAppearance") else {
+            guard let value = nativePreferences.string(forKey: "iconAppearance") else {
                 return .color
             }
             return MenuBarIconAppearance(rawValue: value) ?? .color
         }
         set {
-            UserDefaults.standard.setValue(newValue.rawValue, forKey: "iconAppearance")
-            UserDefaults.standard.synchronize()
+            nativePreferences.setValue(newValue.rawValue, forKey: "iconAppearance")
+            nativePreferences.synchronize()
         }
     }
 }

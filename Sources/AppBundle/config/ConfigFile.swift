@@ -3,7 +3,7 @@ import Foundation
 import TOMLKit
 
 let legacyConfigDotfileName = ".winmux.toml"
-let generatedConfigDirectoryName = "winmux-gf"
+let generatedConfigDirectoryName = "winmux-native"
 let generatedConfigFileName = "winmux.toml"
 let aerospaceLegacyConfigDotfileName = ".aerospace.toml"
 let aerospaceConfigDirectoryName = "aerospace"
@@ -166,12 +166,10 @@ func starterConfigText() -> String {
 func ensureBootstrapConfigExistsIfNeeded() throws -> URL? {
     guard serverArgs.configLocation == nil else { return nil }
     let targetUrl = generatedConfigUrl()
-    let existingLegacyUrls = preferredLegacyConfigImportUrl().map { [$0] } ?? []
-    let aerospaceImportUrl = preferredAerospaceConfigImportUrl()
     if try materializeBootstrapConfigIfNeeded(
         targetUrl: targetUrl,
-        existingLegacyUrls: existingLegacyUrls,
-        aerospaceImportUrl: aerospaceImportUrl,
+        existingLegacyUrls: [],
+        aerospaceImportUrl: nil,
     ) {
         return targetUrl
     } else {

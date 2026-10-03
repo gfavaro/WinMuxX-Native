@@ -40,15 +40,15 @@ jobs:
         run: make check
 
       - name: Build personal app on main
-        if: github.event_name == 'push' && github.repository == 'gfavaro/WinMux'
+        if: github.event_name == 'push' && github.repository == 'gfavaro/WinMuxX-Native'
         env:
           BUILD_NUMBER: ${{ github.run_number }}
-        run: make fork-build BUILD_NUMBER="$BUILD_NUMBER"
+        run: make native-build BUILD_NUMBER="$BUILD_NUMBER"
 
       - name: Upload personal build
-        if: github.event_name == 'push' && github.repository == 'gfavaro/WinMux'
+        if: github.event_name == 'push' && github.repository == 'gfavaro/WinMuxX-Native'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: WinMuxX-${{ github.run_number }}
-          path: .release/WinMuxX-*.zip
+          name: WinMuxX-Native-${{ github.run_number }}
+          path: .release-native/WinMuxX-Native-*.zip
           if-no-files-found: error

@@ -13,7 +13,7 @@ struct ShortcutGeneralSettingsView: View {
                 }
             }
             SettingsSection("Startup") {
-                SettingsToggle("Start at login", isOn: $startAtLogin, help: "Launch WinMuxX after you sign in.") {
+                SettingsToggle("Start at login", isOn: $startAtLogin, help: "Launch WinMuxX-Native after you sign in.") {
                     persistRootBool("start-at-login", startAtLogin)
                 }
                 SettingsToggle("Reload config when it changes", isOn: $autoReloadConfig, help: "Apply valid edits saved from another editor automatically.") {

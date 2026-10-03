@@ -85,9 +85,9 @@ private let serverHelp = """
 
     OPTIONS:
       -h, --help              Print help
-      -v, --version           Print WinMux.app version
-      --config-path <path>    Config path. Takes priority over ${XDG_CONFIG_HOME}/winmux-gf/winmux.toml
-                              (defaults to ~/.config/winmux-gf/winmux.toml).
+      -v, --version           Print WinMuxX-Native version and backend
+      --config-path <path>    Config path. Takes priority over ${XDG_CONFIG_HOME}/winmux-native/winmux.toml
+                              (defaults to ~/.config/winmux-native/winmux.toml).
       --read-only             Run without mutating macOS windows.
                               Useful if you want to use only debug-windows or other query commands.
     """
@@ -105,7 +105,7 @@ private func initServerArgs() {
         index += 1
         switch current {
             case "--version", "-v":
-                exit(0, out: "\(winMuxAppVersion) \(gitHash)")
+                exit(0, out: "\(winMuxAppName) \(winMuxAppVersion) \(gitHash)\nWorkspace backend: \(workspaceBackendDescription)")
             case "--config-path":
                 if let arg = args.getOrNil(atIndex: index) {
                     _serverArgs.configLocation = arg

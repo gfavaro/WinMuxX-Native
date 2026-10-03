@@ -5,7 +5,7 @@ import Network
 
 let usage =
     """
-    USAGE: \(CommandLine.arguments.first ?? "winmux") [-h|--help] [-v|--version] <subcommand> [<args>...]
+    USAGE: \(CommandLine.arguments.first ?? "winmux-native-cli") [-h|--help] [-v|--version] <subcommand> [<args>...]
 
     SUBCOMMANDS:
     \(subcommandDescriptions.sortedBy { $0[0] }.toPaddingTable(columnSeparator: "   ").joined(separator: "\n"))
@@ -34,15 +34,17 @@ struct Main {
             }
             print(
                 """
-                winmux CLI client version: \(cliClientVersionAndHash)
-                WinMux.app server version: \(serverVersionAndHash ?? "Unknown. The server is not running")
+                Workspace backend: \(workspaceBackendDescription)
+                Socket: \(socketPath)
+                winmux-native-cli client version: \(cliClientVersionAndHash)
+                WinMuxX-Native.app server version: \(serverVersionAndHash ?? "Unknown. The server is not running")
                 """,
             )
             if serverVersionAndHash != nil && cliClientVersionAndHash != serverVersionAndHash {
                 eprint(
                     """
                     Warning: WinMux client/server versions don't match. Possible fixes:
-                      - Restart WinMux.app (server restart is required after each update)
+                      - Restart WinMuxX-Native.app (server restart is required after each update)
                       - Reinstall and restart WinMux (corrupted installation)
                     """,
                 )
@@ -63,7 +65,7 @@ struct Main {
         let connection = NWConnection(to: NWEndpoint.unix(path: socketPath), using: .tcp)
 
         if let e = await connection.startBlocking().error {
-            exit(1, err: "Can't connect to WinMux server. Is WinMux.app running?\n\(e.localizedDescription)")
+            exit(1, err: "Can't connect to WinMux server. Is WinMuxX-Native.app running?\n\(e.localizedDescription)")
         }
 
         var stdin = ""
@@ -109,10 +111,10 @@ struct Main {
             eprint(
                 """
                 Warning: WinMux client/server versions don't match
-                  - winmux CLI client version: \(cliClientVersionAndHash)
-                  - WinMux.app server version: \(ans.serverVersionAndHash)
+                  - winmux-native-cli client version: \(cliClientVersionAndHash)
+                  - WinMuxX-Native.app server version: \(ans.serverVersionAndHash)
                   Possible fixes:
-                  - Restart WinMux.app (server restart is required after each update)
+                  - Restart WinMuxX-Native.app (server restart is required after each update)
                   - Reinstall and restart WinMux (corrupted installation)
                 """,
             )

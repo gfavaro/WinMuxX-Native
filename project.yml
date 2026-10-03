@@ -23,6 +23,8 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSUIElement: true
         SUEnableAutomaticChecks: false
+        SUAllowsAutomaticUpdates: false
+        SUAutomaticallyUpdate: false
     sources:
       - "Sources/WinMuxApp"
       - path: "resources"
@@ -46,11 +48,11 @@ targets:
         DEVELOPMENT_TEAM: ${XCODEGEN_WINMUX_DEVELOPMENT_TEAM}
       configs:
         Debug:
-          PRODUCT_NAME: WinMuxX-Debug
-          PRODUCT_BUNDLE_IDENTIFIER: com.gfavaro.winmuxx.debug
+          PRODUCT_NAME: WinMuxX-Native-Debug
+          PRODUCT_BUNDLE_IDENTIFIER: com.gfavaro.winmuxx.native.debug
         Release:
-          PRODUCT_NAME: WinMuxX
-          PRODUCT_BUNDLE_IDENTIFIER: com.gfavaro.winmuxx
+          PRODUCT_NAME: WinMuxX-Native
+          PRODUCT_BUNDLE_IDENTIFIER: com.gfavaro.winmuxx.native
           ENABLE_HARDENED_RUNTIME: YES
           SWIFT_TREAT_WARNINGS_AS_ERRORS: YES
           GCC_TREAT_WARNINGS_AS_ERRORS: YES

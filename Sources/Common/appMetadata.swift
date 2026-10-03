@@ -1,10 +1,17 @@
-public let stableWinMuxAppId: String = "com.gfavaro.winmuxx"
-public let forkRepositoryURL = "https://github.com/gfavaro/WinMuxX"
-public let winMuxAppSupportDirectoryName = "WinMux-GF"
+import Foundation
+
+public let stableWinMuxAppId: String = "com.gfavaro.winmuxx.native"
+public let forkRepositoryURL = "https://github.com/gfavaro/WinMuxX-Native"
+public let winMuxAppSupportDirectoryName = "WinMux-Native"
 #if DEBUG
-    public let winMuxAppId: String = "com.gfavaro.winmuxx.debug"
-    public let winMuxAppName: String = "WinMuxX-Debug"
+    public let winMuxAppId: String = "com.gfavaro.winmuxx.native.debug"
+    public let winMuxAppName: String = "WinMuxX-Native-Debug"
 #else
     public let winMuxAppId: String = stableWinMuxAppId
-    public let winMuxAppName: String = "WinMuxX"
+    public let winMuxAppName: String = "WinMuxX-Native"
 #endif
+
+public let workspaceBackendDescription = "virtual (native Spaces backend pending)"
+
+// Explicit suite also isolates the unbundled SPM debug executable.
+nonisolated(unsafe) public let nativePreferences = UserDefaults(suiteName: winMuxAppId)!

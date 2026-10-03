@@ -10,7 +10,7 @@ let package = Package(
     platforms: [.macOS(.v13)],
     // Products define the executables and libraries a package produces, making them visible to other packages.
     products: [
-        .executable(name: "winmux", targets: ["Cli"]),
+        .executable(name: "winmux-native-cli", targets: ["Cli"]),
         .executable(name: "winmux-marketing-renderer", targets: ["MarketingRenderer"]),
         .executable(name: "winmux-window-capture", targets: ["WindowCapture"]),
         // Don't use this build for release, use xcode instead
