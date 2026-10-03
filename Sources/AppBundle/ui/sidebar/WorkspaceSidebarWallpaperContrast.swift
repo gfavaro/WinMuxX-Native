@@ -79,6 +79,10 @@ actor WorkspaceSidebarWallpaperAnalyzer {
 
     func profile(for request: WorkspaceSidebarWallpaperRequest) -> WorkspaceSidebarWallpaperSample? {
         guard request.url.isFileURL, request.screenWidth > 0, request.screenHeight > 0 else { return nil }
+        // NSWorkspace can return this legacy placeholder for modern/dynamic wallpapers.
+        // Its Golden Gate image is unrelated to the rendered desktop. Returning nil
+        // keeps both text contrast and the expanded tint on the system-theme fallback.
+        guard request.url.standardizedFileURL.path != "/System/Library/CoreServices/DefaultDesktop.heic" else { return nil }
         // URL resource values can retain a stale modification date for the same URL.
         // Read fresh filesystem metadata so replacing a wallpaper invalidates the cache.
         let modified = (try? FileManager.default.attributesOfItem(atPath: request.url.path)[.modificationDate]) as? Date
@@ -92,6 +96,9 @@ actor WorkspaceSidebarWallpaperAnalyzer {
 
     private func sample(_ request: WorkspaceSidebarWallpaperRequest) -> WorkspaceSidebarWallpaperSample? {
         guard let source = CGImageSourceCreateWithURL(request.url as CFURL, nil),
+              // ImageIO index zero does not identify the variant currently rendered by
+              // macOS. Do not guess contrast from a multi-image wallpaper.
+              CGImageSourceGetCount(source) == 1,
               let image = CGImageSourceCreateThumbnailAtIndex(source, 0, [
                   kCGImageSourceCreateThumbnailFromImageAlways: true,
                   kCGImageSourceCreateThumbnailWithTransform: true,

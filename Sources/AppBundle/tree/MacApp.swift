@@ -218,7 +218,15 @@ final class MacApp: AbstractApp {
         }
     }
 
+    @MainActor
+    func cancelPendingFrameWrites() {
+        for job in setFrameJobs.values { job.cancel() }
+        setFrameJobs.removeAll()
+    }
+
+    @MainActor
     func setAxFrame(_ windowId: UInt32, _ topLeft: CGPoint?, _ size: CGSize?) {
+        guard !WindowRecoveryController.shared.suppressAutomaticFrameWrites else { return }
         setFrameJobs.removeValue(forKey: windowId)?.cancel()
         setFrameJobs[windowId] = withWindowAsync(windowId) { [axApp] window, job in
             try setFrame(window, app: axApp.threadGuarded, topLeft, size, job)

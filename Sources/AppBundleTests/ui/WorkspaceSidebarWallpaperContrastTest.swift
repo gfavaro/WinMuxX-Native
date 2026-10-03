@@ -66,6 +66,40 @@ final class WorkspaceSidebarWallpaperContrastTest: XCTestCase {
         XCTAssertNil(missing)
     }
 
+    func testLegacyDesktopPlaceholderDoesNotOverrideSystemContrastOnEitherMonitor() async {
+        let analyzer = WorkspaceSidebarWallpaperAnalyzer()
+        for screen in [CGSize(width: 1710, height: 1112), CGSize(width: 3440, height: 1440)] {
+            for width in [44.0, 280.0] {
+                var placeholder = request(url: URL(filePath: "/System/Library/CoreServices/DefaultDesktop.heic"))
+                placeholder = WorkspaceSidebarWallpaperRequest(
+                    url: placeholder.url, screenWidth: screen.width, screenHeight: screen.height,
+                    sidebarWidth: width, scaling: placeholder.scaling, allowClipping: placeholder.allowClipping,
+                    fillRed: 0, fillGreen: 0, fillBlue: 0
+                )
+                let profile = await analyzer.profile(for: placeholder)
+                XCTAssertNil(profile, "Placeholder must not supply a foreground or expanded tint")
+            }
+        }
+    }
+
+    func testMultiImageWallpaperDoesNotGuessActiveVariant() async throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("winmux-wallpaper-variants-\(UUID().uuidString).tiff")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let context = try XCTUnwrap(CGContext(data: nil, width: 100, height: 100, bitsPerComponent: 8, bytesPerRow: 400,
+            space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+        let destination = try XCTUnwrap(CGImageDestinationCreateWithURL(url as CFURL, "public.tiff" as CFString, 2, nil))
+        for brightness: CGFloat in [1, 0] {
+            context.setFillColor(gray: brightness, alpha: 1)
+            context.fill(CGRect(x: 0, y: 0, width: 100, height: 100))
+            CGImageDestinationAddImage(destination, try XCTUnwrap(context.makeImage()), nil)
+        }
+        XCTAssertTrue(CGImageDestinationFinalize(destination))
+        let source = try XCTUnwrap(CGImageSourceCreateWithURL(url as CFURL, nil))
+        XCTAssertEqual(CGImageSourceGetCount(source), 2)
+        let profile = await WorkspaceSidebarWallpaperAnalyzer().profile(for: request(url: url))
+        XCTAssertNil(profile)
+    }
+
     func testAnalyzerSamplesSidebarStripNotWholeWallpaper() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("winmux-wallpaper-test-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

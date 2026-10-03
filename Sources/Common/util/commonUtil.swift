@@ -55,16 +55,39 @@ public func dieT<T>(
         )
     }
     if !isUnitTest && !recursionDetectorDuringTermination {
-        let semaphore = DispatchSemaphore(value: 0)
-        Task {
-            defer { semaphore.signal() }
-            try await $recursionDetectorDuringTermination.withValue(true) {
-                try await terminationHandler.beforeTermination()
-            }
-        }
-        semaphore.wait()
+        runTerminationCleanupBlocking()
     }
     fatalError("\n" + message)
+}
+
+extension TerminationHandler {
+    /// Errors raised during cleanup must not recursively wait for that same cleanup.
+    public func performTerminationCleanup() async throws {
+        try await $recursionDetectorDuringTermination.withValue(true) {
+            try await beforeTermination()
+        }
+    }
+}
+
+// Shared by the fatal path and subprocess regression tests.
+func runTerminationCleanupBlocking() {
+    let semaphore = DispatchSemaphore(value: 0)
+    Task {
+        defer { semaphore.signal() }
+        do {
+            try await terminationHandler.performTerminationCleanup()
+        } catch {
+            NSLog("WinMux fatal-error cleanup: %@", String(describing: error))
+        }
+    }
+    if Thread.isMainThread {
+        // Cleanup runs on MainActor. Keep servicing it instead of deadlocking it.
+        while semaphore.wait(timeout: .now()) != .success {
+            RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.01))
+        }
+    } else {
+        semaphore.wait()
+    }
 }
 
 public enum RefreshSessionEvent: Sendable, CustomStringConvertible {

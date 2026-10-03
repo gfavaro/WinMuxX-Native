@@ -10,8 +10,6 @@ import Foundation
         var bootstrappedConfigUrl: URL? = nil
         if isDebug {
             await toggleReleaseServerIfDebug(.off)
-            interceptTermination(SIGINT)
-            interceptTermination(SIGKILL)
         }
         do {
             bootstrappedConfigUrl = try ensureBootstrapConfigExistsIfNeeded()

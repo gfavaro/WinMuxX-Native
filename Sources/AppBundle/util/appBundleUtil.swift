@@ -8,51 +8,96 @@ let signposter = OSSignposter(subsystem: winMuxAppId, category: .pointsOfInteres
 let myPid = NSRunningApplication.current.processIdentifier
 let lockScreenAppBundleId = "com.apple.loginwindow"
 
-func interceptTermination(_ _signal: Int32) {
-    signal(_signal, { signal in
-        check(Thread.current.isMainThread)
-        Task {
-            defer { exit(signal) }
-            try await terminationHandler.beforeTermination()
+@MainActor
+private let terminationCoordinator = WindowTerminationCoordinator()
+@MainActor
+private var terminationSignals: [DispatchSourceSignal] = []
+
+@MainActor
+func interceptTermination(_ number: Int32) {
+    signal(number, SIG_IGN)
+    let source = DispatchSource.makeSignalSource(signal: number, queue: .main)
+    source.setEventHandler {
+        Task { @MainActor in
+            defer { exit(number) }
+            do { try await terminationHandler.performTerminationCleanup() }
+            catch { NSLog("WinMux termination: %@", String(describing: error)) }
         }
-    } as sig_t)
+    }
+    terminationSignals.append(source)
+    source.resume()
 }
 
 @MainActor
 func initTerminationHandler() {
     terminationHandler = AppServerTerminationHandler()
+    interceptTermination(SIGINT)
+    interceptTermination(SIGTERM)
 }
 
 private struct AppServerTerminationHandler: TerminationHandler {
     func beforeTermination() async throws {
-        persistFrozenWorldForRestartIfPossible()
-        try await makeAllWindowsVisibleAndRestoreSize()
-        WindowRecoveryController.shared.finishCleanly()
-        await toggleReleaseServerIfDebug(.on)
+        await terminationCoordinator.run {
+            WindowRecoveryController.shared.beginTermination()
+            persistFrozenWorldForRestartIfPossible()
+            for app in MacApp.allAppsMap.values { app.cancelPendingFrameWrites() }
+            let pending = await makeAllWindowsVisibleAndRestoreSize()
+            WindowRecoveryController.shared.finishCleanly(preserving: pending)
+            await toggleReleaseServerIfDebug(.on)
+        }
+    }
+}
+
+func terminationFrame(visibleFrame: CGRect, floatingSize: CGSize?) -> CGRect {
+    let proposed = floatingSize ?? visibleFrame.size
+    let size = CGSize(
+        width: proposed.width.isFinite && proposed.width > 0 ? min(proposed.width, visibleFrame.width) : visibleFrame.width,
+        height: proposed.height.isFinite && proposed.height > 0 ? min(proposed.height, visibleFrame.height) : visibleFrame.height
+    )
+    return CGRect(x: visibleFrame.minX + (visibleFrame.width - size.width) / 2,
+                  y: visibleFrame.minY + (visibleFrame.height - size.height) / 2,
+                  width: size.width, height: size.height)
+}
+
+@MainActor
+private func makeAllWindowsVisibleAndRestoreSize() async -> [RecoveryWindowIdentity] {
+    guard !serverArgs.isReadOnly else { return [] }
+    // Snapshot without accessing the tree: an internal error may leave windows unbound.
+    let failed = await restoreTerminationWindows(Array(MacWindow.allWindowsMap.values)) { window in
+        guard try await !window.isMacosFullscreen, try await !window.isMacosMinimized else {
+            throw WindowTerminationError.nativeState
+        }
+        let monitor = (try? await window.getCenter())?.monitorApproximation ?? mainMonitor
+        let rect = monitor.visibleRect
+        let frame = terminationFrame(visibleFrame: CGRect(x: rect.minX, y: rect.minY, width: rect.width, height: rect.height),
+                                     floatingSize: window.lastFloatingSize)
+        try await window.setAxFrameBlocking(frame.origin, frame.size)
+        guard let actual = try await window.getAxRect(), recoveryFrameMatches(
+            actual: CGRect(x: actual.minX, y: actual.minY, width: actual.width, height: actual.height), expected: frame
+        ) else { throw WindowTerminationError.frameRejected }
+    } onFailure: { window, error in
+        NSLog("WinMux: unable to restore window %u: %@", window.windowId, String(describing: error))
+    }
+    return failed.compactMap { WindowRecoveryController.shared.identity(for: $0) }
+}
+
+private enum WindowTerminationError: Error { case frameRejected, nativeState }
+
+@MainActor
+public final class WinMuxApplicationDelegate: NSObject, NSApplicationDelegate {
+    public func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        Task { @MainActor in
+            do { try await terminationHandler.performTerminationCleanup() }
+            catch { NSLog("WinMux termination: %@", String(describing: error)) }
+            sender.reply(toApplicationShouldTerminate: true)
+        }
+        return .terminateLater
     }
 }
 
 @MainActor
-private func makeAllWindowsVisibleAndRestoreSize() async throws {
-    // Make all windows fullscreen before Quit
-    for (_, window) in MacWindow.allWindowsMap {
-        // makeAllWindowsVisibleAndRestoreSize may be invoked when something went wrong (e.g. some windows are unbound)
-        // that's why it's not allowed to use `.parent` call in here
-        let monitor = try await window.getCenter()?.monitorApproximation ?? mainMonitor
-        let monitorVisibleRect = monitor.visibleRect
-        let windowSize = window.lastFloatingSize ?? CGSize(width: monitorVisibleRect.width, height: monitorVisibleRect.height)
-        let point = CGPoint(
-            x: (monitorVisibleRect.width - windowSize.width) / 2,
-            y: (monitorVisibleRect.height - windowSize.height) / 2,
-        )
-        try await window.setAxFrameBlocking(point, windowSize)
-    }
-}
-
-@MainActor
-func terminateApp() -> Never {
+func terminateApp() {
     NSApplication.shared.terminate(nil)
-    die("Unreachable code")
 }
 
 extension String {

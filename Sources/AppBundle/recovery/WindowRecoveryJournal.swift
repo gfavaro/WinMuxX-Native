@@ -107,9 +107,9 @@ final class WindowRecoveryJournal {
 
     /// A clean quit doesn't need crash recovery for this session. Unresolved entries from
     /// an older crash remain available, including failures or disconnected displays.
-    func finishCleanly() {
+    func finishCleanly(preserving identities: [RecoveryWindowIdentity] = []) {
         guard canWrite else { return }
-        entries = entries.filter { carriedIds.contains($0.key) }
+        entries = entries.filter { carriedIds.contains($0.key) || identities.contains($0.value.identity) }
         save()
     }
 

@@ -17,3 +17,5 @@ guides above for today's settings and development workflow.
 - [Menu-bar appearance investigation](MENU_BAR_APPEARANCE_INVESTIGATION.md)
 - [Dwindle comparison with Dinky](DWINDLE_DINKY_COMPARISON.md)
 - [Simplification review](SIMPLIFY_REVIEW.md)
+- [Viabilidade de Spaces nativos](NATIVE_SPACES_FEASIBILITY.md)
+- [Dinky: fluxo de Spaces aproveitável](DINKY_NATIVE_SPACES_REVIEW.md)

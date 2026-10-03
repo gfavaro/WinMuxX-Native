@@ -110,6 +110,17 @@ final class WindowRecoveryJournalTest: XCTestCase {
         XCTAssertEqual(next.recoverableEntries(liveIdentities: [identity, current]).map { $0.identity.windowId }, [10])
     }
 
+    func testCleanQuitPreservesFailedCurrentWindowAndOlderEntries() {
+        journal().record(identity: identity, originalFrame: frame)
+        let store = journal()
+        let failed = RecoveryWindowIdentity(windowId: 11, pid: 5000, bundleId: "test.editor", applicationLaunchDate: identity.applicationLaunchDate)
+        let restored = RecoveryWindowIdentity(windowId: 12, pid: 5000, bundleId: "test.editor", applicationLaunchDate: identity.applicationLaunchDate)
+        store.record(identity: failed, originalFrame: frame)
+        store.record(identity: restored, originalFrame: frame)
+        store.finishCleanly(preserving: [failed])
+        XCTAssertEqual(journal().recoverableEntries(liveIdentities: [identity, failed, restored]).map(\.identity.windowId), [10, 11])
+    }
+
     func testInvalidOriginalFrameIsNotJournaled() {
         let store = journal()
         store.record(identity: identity, originalFrame: .zero)

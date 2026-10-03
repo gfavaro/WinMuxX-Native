@@ -10,7 +10,11 @@ final class WindowRecoveryController {
     private(set) var isRecovering = false
     private(set) var isGeometryPaused = false
 
-    var suppressAutomaticFrameWrites: Bool { isGeometryPaused && !TrayMenuModel.shared.isEnabled }
+    private(set) var isTerminating = false
+
+    func beginTermination() { isTerminating = true }
+
+    var suppressAutomaticFrameWrites: Bool { isTerminating || (isGeometryPaused && !TrayMenuModel.shared.isEnabled) }
 
     func resumeTiling() { isGeometryPaused = false }
 
@@ -66,7 +70,7 @@ final class WindowRecoveryController {
         return "\(count) windows from a previous session can be recovered" + (error.map { "; WARNING: \($0)" } ?? "")
     }
 
-    func finishCleanly() { journal?.finishCleanly() }
+    func finishCleanly(preserving identities: [RecoveryWindowIdentity] = []) { journal?.finishCleanly(preserving: identities) }
 
     /// Explicit user action only. Pausing first prevents the next refresh from undoing
     /// recovered geometry. Never move native Spaces or force-unminimize/fullscreen windows.
