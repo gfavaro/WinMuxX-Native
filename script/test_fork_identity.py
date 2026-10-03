@@ -41,7 +41,7 @@ class ForkIdentityTests(unittest.TestCase):
         metadata = (ROOT / "Sources/Common/appMetadata.swift").read_text()
         self.assertIn('UserDefaults(suiteName: winMuxAppId)', metadata)
         self.assertIn('winMuxAppSupportDirectoryName = "WinMux-Native"', metadata)
-        self.assertIn('workspaceBackendDescription = "virtual (native Spaces backend pending)"', metadata)
+        self.assertIn('workspaceBackendDescription = "native macOS Spaces (bridged SkyLight backend)"', metadata)
 
     def test_fork_does_not_delete_upstream_login_items(self):
         login = (ROOT / "Sources/AppBundle/config/startAtLogin.swift").read_text()

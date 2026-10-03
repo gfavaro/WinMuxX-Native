@@ -129,6 +129,17 @@ open class TreeNode: Equatable, WinMuxAny {
         return result
     }
 
+    func restoreMostRecentChildren(_ order: [TreeNode]) {
+        for child in Array(_mruChildren) { _mruChildren.remove(child) }
+        for child in order.reversed() where children.contains(child) { _mruChildren.pushOrRaise(child) }
+    }
+
+    // Used to roll back a staged native transition without replacing logical tree objects.
+    var bindingDataSnapshot: BindingData? {
+        guard let parent, let index = parent.children.firstIndex(of: self) else { return nil }
+        return BindingData(parent: parent, adaptiveWeight: adaptiveWeight, index: index)
+    }
+
     @discardableResult
     func unbindFromParent() -> BindingData {
         unbindIfBound() ?? dieT("\(self) is already unbound. The stacktrace where it was unbound:\n\(unboundStacktrace ?? "nil")")

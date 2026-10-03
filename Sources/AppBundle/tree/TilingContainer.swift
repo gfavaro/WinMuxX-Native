@@ -10,6 +10,13 @@ final class TilingContainer: TreeNode, NonLeafTreeNodeObject { // todo consider 
     // nil resolves each split from the available rectangle.
     var dwindleOrientation: Orientation?
 
+    func restoreNativeCheckpointLayout(_ orientation: Orientation, _ layout: Layout, _ ratios: [CGFloat], _ dwindle: Orientation?) {
+        _orientation = orientation
+        self.layout = layout
+        dwindleSplitRatios = ratios
+        dwindleOrientation = dwindle
+    }
+
     func dwindleAxis(width: CGFloat, height: CGFloat) -> Orientation {
         dwindleOrientation ?? (width >= height ? .h : .v)
     }

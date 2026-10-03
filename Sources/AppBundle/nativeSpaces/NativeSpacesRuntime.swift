@@ -1,0 +1,257 @@
+import AppKit
+import Common
+import Darwin
+
+/// One serial lane for model + native transitions. Waiting yields MainActor;
+/// a newly requested workspace cannot retarget windows belonging to an in-flight swap.
+@MainActor
+final class NativeSpaceSessionGate {
+    private var busy = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func acquire() async {
+        if !busy { busy = true; return }
+        await withCheckedContinuation { waiters.append($0) }
+    }
+
+    func release() {
+        if waiters.isEmpty { busy = false }
+        else { waiters.removeFirst().resume() }
+    }
+}
+
+@MainActor
+final class NativeSpacesRuntime {
+    static let shared = NativeSpacesRuntime()
+    let sessions = NativeSpaceSessionGate()
+    private(set) var coordinator: NativeSpaceCoordinator?
+    private(set) var failure: String?
+    private(set) var isStagingModel = false
+    private var lockFD: Int32 = -1
+    private var nativeTask: Task<Void, Error>?
+    private var lastObservedActive: [String: String] = [:]
+    private var testWindowIdentities: [UInt32: NativeWindowIdentity] = [:]
+
+    var isNative: Bool { coordinator != nil }
+    var shouldSerializeSessions: Bool { !isUnitTest && !serverArgs.isReadOnly }
+    var mayWriteFrames: Bool { isUnitTest || serverArgs.isReadOnly || (isNative && failure == nil && !isStagingModel) }
+
+    func start() async throws {
+        guard !isUnitTest, !serverArgs.isReadOnly else { return }
+        let driver = try SkyLightSpaceDriver()
+        let directory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent(winMuxAppSupportDirectoryName, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let fd = open(directory.appendingPathComponent("native-spaces.lock").path, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR)
+        guard fd >= 0 else { throw NativeSpaceError.unavailable("cannot open exclusive state lock") }
+        guard flock(fd, LOCK_EX | LOCK_NB) == 0 else {
+            close(fd)
+            throw NativeSpaceError.unavailable("another native release/debug instance owns the state directory")
+        }
+        lockFD = fd
+        let engine: NativeSpaceCoordinator
+        do { engine = try NativeSpaceCoordinator(driver: driver, store: NativeSpaceStore(url: directory.appendingPathComponent("native-spaces.json"))) }
+        catch {
+            close(lockFD)
+            lockFD = -1
+            throw error
+        }
+        coordinator = engine
+        let recovery = Task { @MainActor in try await engine.recover() }
+        nativeTask = recovery
+        defer { nativeTask = nil }
+        try await recovery.value
+        try restoreWorkspaceBindings()
+        try observeTopology()
+    }
+
+    func installForTests(_ coordinator: NativeSpaceCoordinator?, windows: [NativeWindowIdentity] = []) {
+        precondition(isUnitTest)
+        self.coordinator = coordinator
+        failure = nil
+        isStagingModel = false
+        lastObservedActive = [:]
+        testWindowIdentities = Dictionary(uniqueKeysWithValues: windows.map { ($0.id, $0) })
+    }
+
+    func beginModelChanges() { if isNative { isStagingModel = true } }
+    func endModelChanges() { isStagingModel = false }
+
+    func report(_ error: Error) {
+        guard !isUnitTest else { return }
+        failure = error.localizedDescription
+        // The native app never silently resumes virtual corner parking.
+        TrayMenuModel.shared.isEnabled = false
+        MessageModel.shared.message = Message(description: "Native Spaces Paused", body: error.localizedDescription + "\nWindow management is paused. Resolve the condition and use Enable to retry recovery.")
+    }
+
+    func retryRecovery() async throws {
+        guard !isUnitTest, !serverArgs.isReadOnly else { return }
+        if let coordinator {
+            let recovery = Task { @MainActor in try await coordinator.recover() }
+            nativeTask = recovery
+            defer { nativeTask = nil }
+            try await recovery.value
+            failure = nil
+            try restoreWorkspaceBindings()
+            try observeTopology()
+        } else {
+            try await start()
+            failure = nil
+        }
+    }
+
+    func finishPendingOperation() async {
+        if let nativeTask { _ = try? await nativeTask.value }
+    }
+
+    /// Recreate the saved logical identities by name, then rekey native associations to
+    /// this session's WorkspaceIds. Numeric IDs alone must not bind a different project.
+    private func restoreWorkspaceBindings() throws {
+        guard let coordinator else { return }
+        var restored: [String: NativeSpaceBinding] = [:]
+        let topology = try coordinator.driver.topology()
+        for saved in coordinator.state.bindings.values.sorted(by: { $0.workspace < $1.workspace }) {
+            guard let physical = topology.displayContaining(saved.space),
+                  saved.spaceUUID.isEmpty || topology.desktop(saved.space)?.uuid == saved.spaceUUID else {
+                // Preserve detached logical workspaces; their trees can return through
+                // the native-specific restart snapshot without importing virtual state.
+                let workspace = Workspace.get(byName: saved.name)
+                workspace.assignProject(WorkspaceProjectId(saved.project))
+                continue
+            }
+            let workspace = Workspace.get(byName: saved.name)
+            workspace.assignProject(WorkspaceProjectId(saved.project))
+            workspace.restoreNamingStyle(saved.namingStyle)
+            if let monitor = monitor(for: physical) { workspace.preferredMonitorPoint = monitor.rect.topLeftCorner }
+            restored[workspace.id.rawValue] = NativeSpaceBinding(workspace: workspace.id.rawValue, name: workspace.name, project: workspace.projectId.rawValue, display: physical.uuid, space: saved.space, spaceUUID: topology.desktop(saved.space)?.uuid ?? "", namingStyle: saved.namingStyle)
+        }
+        try coordinator.replaceBindings(restored)
+    }
+
+    func retainsExternalDesktop(_ workspace: Workspace) -> Bool {
+        guard let coordinator,
+              let binding = coordinator.state.bindings[workspace.id.rawValue],
+              !coordinator.state.ownedSpaces.contains(where: { $0.id == binding.space }),
+              let topology = try? coordinator.driver.topology() else { return false }
+        return topology.desktop(binding.space)?.isUser == true
+    }
+
+    func workspaceForWindow(_ window: UInt32) -> Workspace? {
+        guard let coordinator, failure == nil,
+              let spaces = try? coordinator.driver.memberships(window), spaces.count == 1,
+              let binding = coordinator.state.bindings.values.first(where: { $0.space == spaces[0] }) else { return nil }
+        return Workspace.existing(byName: binding.name)
+    }
+
+    /// Follow Mission Control and manual window transfers before deriving desired state.
+    /// Fullscreen keeps the underlying workspace and its global layout untouched.
+    func observeTopology() throws {
+        guard let coordinator, failure == nil, coordinator.state.pending == nil else { return }
+        let topology = try coordinator.driver.topology()
+        var adopted: [NativeSpaceBinding] = []
+        var bound = Set(coordinator.state.bindings.values.map(\.space))
+        for display in topology.displays {
+            guard let monitor = monitor(for: display) else { throw NativeSpaceError.topology("cannot match physical display to monitor") }
+            for desktop in display.spaces where desktop.isUser && !bound.contains(desktop.id) && !coordinator.state.ownedSpaces.contains(where: { $0.id == desktop.id }) {
+                if try desktop.id != display.currentSpace && coordinator.driver.occupants(desktop.id).isEmpty { continue }
+                let existing: Workspace?
+                if desktop.id == display.currentSpace,
+                   let candidate = winMuxWorkspaceState.visibleWorkspace(for: monitor),
+                   coordinator.state.bindings[candidate.id.rawValue] == nil {
+                    existing = candidate
+                } else { existing = nil }
+                let workspace = existing ?? createBlankWorkspace(projectId: activeWorkspaceProjectId(for: monitor), monitor: monitor)
+                workspace.markAsSidebarManaged()
+                // Pre-existing or user-created desktops are adopted, never marked owned.
+                adopted.append(NativeSpaceBinding(workspace: workspace.id.rawValue, name: workspace.name, project: workspace.projectId.rawValue, display: display.uuid, space: desktop.id, spaceUUID: desktop.uuid, namingStyle: workspace.namingStyle))
+                bound.insert(desktop.id)
+            }
+        }
+        if !adopted.isEmpty { try coordinator.adopt(adopted) }
+        for display in topology.displays {
+            guard let monitor = monitor(for: display),
+                  let binding = coordinator.state.bindings.values.first(where: { $0.space == display.currentSpace }),
+                  let workspace = Workspace.existing(byName: binding.name) else { continue }
+            // Restore both visible assignments as one snapshot to avoid transient duplicates
+            // when macOS itself relocates desktops between connected displays.
+            var viewport = winMuxWorkspaceState.monitorViewportsById[MonitorViewportId(monitor)] ?? MonitorViewport(id: MonitorViewportId(monitor))
+            if viewport.activeWorkspaceId != workspace.id {
+                viewport.previousWorkspaceId = viewport.activeWorkspaceId
+                viewport.activeWorkspaceId = workspace.id
+                viewport.lastActiveWorkspaceByProject[workspace.projectId] = workspace.id
+            }
+            winMuxWorkspaceState.monitorViewportsById[MonitorViewportId(monitor)] = viewport
+            lastObservedActive[display.uuid] = workspace.id.rawValue
+        }
+        // Follow manual moves only when the original desktop still exists. A disconnected
+        // source must be reconciled as a global workspace transfer, not merged into its neighbor.
+        for window in MacWindow.allWindows {
+            guard let source = window.visualWorkspace,
+                  let sourceBinding = coordinator.state.bindings[source.id.rawValue],
+                  topology.desktop(sourceBinding.space) != nil,
+                  let destination = workspaceForWindow(window.windowId), destination !== source else { continue }
+            switch window.layoutReason {
+                case .standard:
+                    if window.isFloating { window.bindAsFloatingWindow(to: destination) }
+                    else { window.bind(to: destination.rootTilingContainer, adaptiveWeight: WEIGHT_AUTO, index: INDEX_BIND_LAST) }
+                case .macos:
+                    break // Preserve native minimized/fullscreen/hidden state and its remembered owner.
+            }
+        }
+    }
+
+    func synchronize() async throws {
+        guard let coordinator, !serverArgs.isReadOnly, TrayMenuModel.shared.isEnabled else { return }
+        if let failure { throw NativeSpaceError.recoveryRequired(failure) }
+        let topology = try coordinator.driver.topology()
+        var requests: [NativeWorkspaceRequest] = []
+        var activate: Set<String> = []
+        for workspace in Workspace.all {
+            let display: NativeDisplaySnapshot?
+            if !workspace.isVisible,
+               let binding = coordinator.state.bindings[workspace.id.rawValue],
+               let connected = topology.displayContaining(binding.space) {
+                // Hidden workspaces retain their actual location until summoned. A layout
+                // refresh cannot silently undo the user's previous destination choice.
+                display = connected
+            } else { display = self.display(for: workspace.workspaceMonitor, in: topology) }
+            guard let display else { throw NativeSpaceError.topology("workspace monitor disappeared") }
+            let windows = try collectAllWindowIds(workspace: workspace).compactMap { id -> NativeWindowIdentity? in
+                if isUnitTest, let identity = testWindowIdentities[id] { return identity }
+                guard let window = MacWindow.allWindowsMap[id] else { return nil }
+                guard let launch = window.macApp.nsApp.launchDate else { throw NativeSpaceError.unsafeWindow(id) }
+                return NativeWindowIdentity(id: id, pid: window.macApp.pid, launchDate: launch)
+            }
+            requests.append(NativeWorkspaceRequest(key: workspace.id.rawValue, name: workspace.name, project: workspace.projectId.rawValue, display: display.uuid, visible: workspace.isVisible, windows: windows, namingStyle: workspace.namingStyle))
+            if workspace.isVisible {
+                if topology.desktop(display.currentSpace)?.isUser == true || lastObservedActive[display.uuid] != workspace.id.rawValue {
+                    activate.insert(display.uuid)
+                }
+            }
+        }
+        let task = Task { @MainActor in try await coordinator.synchronize(requests, activate: activate) }
+        nativeTask = task
+        defer { nativeTask = nil }
+        try await task.value
+        for request in requests where request.visible { lastObservedActive[request.display] = request.key }
+        // Crash recovery must include the current native tree, not only clean-quit state.
+        if !isUnitTest { persistFrozenWorldForRestartIfPossible() }
+    }
+
+    func isActuallyVisible(_ workspace: Workspace) -> Bool {
+        guard let coordinator,
+              let binding = coordinator.state.bindings[workspace.id.rawValue],
+              let snapshot = try? coordinator.driver.topology() else { return false }
+        return snapshot.displayContaining(binding.space)?.currentSpace == binding.space
+    }
+
+    private func monitor(for display: NativeDisplaySnapshot) -> Monitor? {
+        let point = CGDisplayBounds(display.displayID).origin
+        return monitors.first { abs($0.rect.minX - point.x) < 1 && abs($0.rect.minY - point.y) < 1 }
+    }
+
+    private func display(for monitor: Monitor, in topology: NativeSpaceTopology) -> NativeDisplaySnapshot? {
+        topology.displays.first { display in self.monitor(for: display)?.rect.topLeftCorner == monitor.rect.topLeftCorner }
+    }
+}

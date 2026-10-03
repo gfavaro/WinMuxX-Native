@@ -1,10 +1,11 @@
 import Common
 import Foundation
 
-private let persistedFrozenWorldVersion = 1
-private let persistedFrozenWorldFilename = "window-state.json"
+private let persistedFrozenWorldVersion = 2
+private let persistedFrozenWorldFilename = "native-window-state.json"
 @MainActor private var pendingPersistedFrozenWorld: FrozenWorld? = nil
 @MainActor private var didRestorePersistedFrozenWorldDuringCurrentSession = false
+@MainActor private var lastSavedNativeWorldData: Data?
 
 private struct PersistedFrozenWorldEnvelope: Codable {
     let version: Int
@@ -36,7 +37,9 @@ func persistFrozenWorldForRestartIfPossible() {
         let data = try JSONEncoder.winMuxDefault.encode(
             PersistedFrozenWorldEnvelope(version: persistedFrozenWorldVersion, world: world),
         )
+        guard data != lastSavedNativeWorldData || !FileManager.default.fileExists(atPath: url.path) else { return }
         try data.write(to: url, options: .atomic)
+        lastSavedNativeWorldData = data
     } catch {
         // Best effort. Failure to save restart state must not block termination.
     }
@@ -87,6 +90,6 @@ func finalizePersistedFrozenWorldAfterRefresh(aliveWindowIds: Set<UInt32>) {
     {
         pendingPersistedFrozenWorld = nil
         didRestorePersistedFrozenWorldDuringCurrentSession = false
-        try? FileManager.default.removeItem(at: persistedFrozenWorldUrl())
+        if !NativeSpacesRuntime.shared.isNative { try? FileManager.default.removeItem(at: persistedFrozenWorldUrl()) }
     }
 }

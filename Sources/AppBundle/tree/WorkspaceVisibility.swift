@@ -33,6 +33,7 @@ func workspaceHasLifecycleWindows(_ workspace: Workspace) -> Bool {
 func isUserFacingWorkspace(_ workspace: Workspace, focusedWorkspace: Workspace? = nil) -> Bool {
     !workspace.isArchived &&
         (
+            NativeSpacesRuntime.shared.retainsExternalDesktop(workspace) ||
             workspaceHasSidebarVisibleWindows(workspace) ||
                 workspace.isVisible ||
                 workspace.isConfiguredPersistent ||

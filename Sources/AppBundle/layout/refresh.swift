@@ -108,6 +108,8 @@ func scheduleRefreshSession(
             }
         } catch is CancellationError {
             return
+        } catch {
+            NativeSpacesRuntime.shared.report(error)
         }
     }
 }
@@ -118,9 +120,14 @@ func runRefreshSessionBlocking(
     layoutWorkspaces shouldLayoutWorkspaces: Bool = true,
     optimisticallyPreLayoutWorkspaces: Bool = false,
 ) async throws {
+    let native = NativeSpacesRuntime.shared
+    let serialize = native.shouldSerializeSessions
+    if serialize { await native.sessions.acquire() }
+    defer { if serialize { native.sessions.release() } }
     let state = signposter.beginInterval(#function, "event: \(event) axTaskLocalAppThreadToken: \(axTaskLocalAppThreadToken?.idForDebug)")
     defer { signposter.endInterval(#function, state) }
     if !TrayMenuModel.shared.isEnabled { return }
+    try native.observeTopology()
     let focusSnapshot = captureRefreshSessionFocusSnapshot()
     debugFocusLog("runRefreshSessionBlocking begin event=\(event) snapshot=\(debugDescribe(focusSnapshot))")
     try await $refreshSessionEvent.withValue(event) {
@@ -134,6 +141,8 @@ func runRefreshSessionBlocking(
                 updateFocusCache(nativeFocused)
                 try checkCancellation()
 
+                native.beginModelChanges()
+                defer { native.endModelChanges() }
                 if shouldLayoutWorkspaces && optimisticallyPreLayoutWorkspaces { try await layoutWorkspaces() }
                 try checkCancellation()
 
@@ -157,6 +166,9 @@ func runRefreshSessionBlocking(
                     try checkCancellation()
                     refreshModel()
                 }
+                try await native.synchronize()
+                native.endModelChanges()
+                refreshModel()
                 updateTrayText()
                 await updateWorkspaceSidebarModel()
                 SecureInputPanel.shared.refresh()
@@ -194,6 +206,10 @@ func runLightSession<T>(
     shouldSchedulePostRefresh: Bool = true,
     body: @MainActor () async throws -> T,
 ) async throws -> T {
+    let native = NativeSpacesRuntime.shared
+    let serialize = native.shouldSerializeSessions
+    if serialize { await native.sessions.acquire() }
+    defer { if serialize { native.sessions.release() } }
     let state = signposter.beginInterval(#function, "event: \(event) axTaskLocalAppThreadToken: \(axTaskLocalAppThreadToken?.idForDebug)")
     defer { signposter.endInterval(#function, state) }
     activeRefreshTask?.cancel() // Give priority to runSession
@@ -202,6 +218,7 @@ func runLightSession<T>(
     // follow-up session in the middle of this light session. The post-refresh scheduled at
     // the end of the light session (or any later event) picks the pending request up instead.
     activeScheduledRefreshGeneration += 1
+    try native.observeTopology()
     let focusSnapshot = captureRefreshSessionFocusSnapshot()
     debugFocusLog("runLightSession begin event=\(event) snapshot=\(debugDescribe(focusSnapshot))")
     return try await $refreshSessionEvent.withValue(event) {
@@ -216,7 +233,20 @@ func runLightSession<T>(
                 let focusBefore = focus.windowOrNil
 
                 refreshModel()
-                let result = try await body()
+                let checkpoint = native.isNative ? NativeLogicalCheckpoint() : nil
+                native.beginModelChanges()
+                let result: T
+                do {
+                    result = try await body()
+                    Workspace.reconcileWorkspaceState()
+                    try await native.synchronize()
+                    native.endModelChanges()
+                } catch {
+                    checkpoint?.restore()
+                    native.endModelChanges()
+                    native.report(error)
+                    throw error
+                }
                 try checkCancellation()
                 refreshModel()
 
@@ -298,7 +328,7 @@ struct RunSessionGuard: Sendable {
 @MainActor
 func refreshModel() {
     Workspace.reconcileWorkspaceState()
-    checkOnFocusChangedCallbacks()
+    if !NativeSpacesRuntime.shared.isStagingModel { checkOnFocusChangedCallbacks() }
     normalizeContainers()
 }
 
@@ -384,6 +414,15 @@ enum OptimalHideCorner {
 @MainActor
 private func layoutWorkspaces() async throws {
     if WindowRecoveryController.shared.suppressAutomaticFrameWrites { return }
+    let native = NativeSpacesRuntime.shared
+    if native.isNative {
+        guard native.mayWriteFrames, TrayMenuModel.shared.isEnabled else { return }
+        for workspace in Workspace.all where native.isActuallyVisible(workspace) {
+            try await workspace.layoutWorkspace()
+        }
+        return
+    }
+    if !isUnitTest && !serverArgs.isReadOnly { return }
     if !TrayMenuModel.shared.isEnabled {
         for workspace in Workspace.all {
             workspace.allLeafWindowsRecursive.forEach { window in

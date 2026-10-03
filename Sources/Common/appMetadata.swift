@@ -11,7 +11,7 @@ public let winMuxAppSupportDirectoryName = "WinMux-Native"
     public let winMuxAppName: String = "WinMuxX-Native"
 #endif
 
-public let workspaceBackendDescription = "virtual (native Spaces backend pending)"
+public let workspaceBackendDescription = "native macOS Spaces (bridged SkyLight backend)"
 
 // Explicit suite also isolates the unbundled SPM debug executable.
 nonisolated(unsafe) public let nativePreferences = UserDefaults(suiteName: winMuxAppId)!

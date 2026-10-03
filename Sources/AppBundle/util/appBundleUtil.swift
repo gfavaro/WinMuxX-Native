@@ -39,7 +39,12 @@ private struct AppServerTerminationHandler: TerminationHandler {
     func beforeTermination() async throws {
         await terminationCoordinator.run {
             WindowRecoveryController.shared.beginTermination()
+            await NativeSpacesRuntime.shared.finishPendingOperation()
             persistFrozenWorldForRestartIfPossible()
+            if NativeSpacesRuntime.shared.isNative {
+                WindowRecoveryController.shared.finishCleanly()
+                return
+            }
             for app in MacApp.allAppsMap.values { app.cancelPendingFrameWrites() }
             let pending = await makeAllWindowsVisibleAndRestoreSize()
             WindowRecoveryController.shared.finishCleanly(preserving: pending)

@@ -39,7 +39,12 @@ import Foundation
         GlobalObserver.initObserver()
         MonitorConfigurationObserver.shared.startObserving()
         Workspace.reconcileWorkspaceState() // init workspaces
-        _ = Workspace.all.first?.focusWorkspace()
+        do { try await NativeSpacesRuntime.shared.start() }
+        catch {
+            NativeSpacesRuntime.shared.report(error)
+            return
+        }
+        _ = mainMonitor.activeWorkspace.focusWorkspace()
         let didLoadPersistedFrozenWorld = loadPersistedFrozenWorldForStartupIfPresent()
         try await runRefreshSessionBlocking(.startup, layoutWorkspaces: false)
         try await runLightSession(.startup, .forceRun) {

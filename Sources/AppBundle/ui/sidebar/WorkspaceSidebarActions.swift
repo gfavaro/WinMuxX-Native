@@ -19,6 +19,7 @@ func focusWorkspaceFromSidebar(_ workspaceName: String, targetMonitorScopeId: St
 /// (after an AX round-trip and title fetches) and corrects any difference.
 @MainActor
 private func optimisticallyMarkWorkspaceFocusedInSidebar(_ workspaceName: String, targetMonitorScopeId: String?) {
+    guard !NativeSpacesRuntime.shared.isNative else { return }
     let workspaces = TrayMenuModel.shared.workspaceSidebarWorkspaces
     guard let workspace = Workspace.existing(byName: workspaceName) else { return }
     let requestedMonitor = targetMonitorScopeId.flatMap(workspaceSidebarMonitor(forScopeId:)) ?? focus.workspace.workspaceMonitor

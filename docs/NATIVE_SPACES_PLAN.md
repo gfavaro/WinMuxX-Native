@@ -1,10 +1,10 @@
 # Approved native Spaces plan
 
-## Preparation (this stage)
+## Preparation (completed)
 
 Create an independent public gfavaro/WinMuxX-Native repository, preserve Git ancestry and starting local recovery/appearance/investigation changes, and isolate app/CLI/socket/configuration/data/preferences/login identities. Provide a local signed build without automatic installation or updates. Keep build/test CI; remove inherited synchronization and release publication. The current app continues using virtual workspaces. No native Spaces private calls, creation, or window movement are added here.
 
-## Next stage: global workspaces over local Spaces
+## Approved implementation: global workspaces over local Spaces
 
 Workspace identity and layout remain global. Physical macOS Spaces belong to individual displays; track workspace identity, associated Space ID, and display separately. Ordinary selection of a workspace already visible elsewhere focuses that display. Explicit summon/override requests transfer the workspace to the requested display rather than allowing reconciliation to send it back to a configured home.
 
@@ -20,4 +20,4 @@ Tabs and new tab behavior are outside this implementation scope. Inherited tab f
 
 ## Fixed reference and attribution
 
-Reference: mikker/Dinky commit `e05ae28f3e814bbae1cf171567be14e0dcba6548`. Read [the reviewed components and limitations](DINKY_NATIVE_SPACES_REVIEW.md), including source permalinks and MIT license link. Future incorporation must retain Dinky's copyright/license and source-level notices for mimi, yabai and other origins. No external code is incorporated now. Symbol availability alone does not establish compatibility or successful operations; validate capabilities and fallback behavior per macOS version in the next stage.
+Reference: mikker/Dinky commit `e05ae28f3e814bbae1cf171567be14e0dcba6548`. Read [the reviewed components and limitations](DINKY_NATIVE_SPACES_REVIEW.md), including source permalinks and MIT license link. Future incorporation must retain Dinky's copyright/license and source-level notices for mimi, yabai and other origins. The subsequent implementation incorporates a narrow, attributed Objective-C bridge; see [implementation notes](NATIVE_SPACES_IMPLEMENTATION.md). Symbol availability alone does not establish compatibility or successful operations; validate capabilities and fallback behavior per macOS version in the next stage.

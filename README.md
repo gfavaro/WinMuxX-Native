@@ -2,7 +2,9 @@
 
 Experimental, independent public derivative of [gfavaro/WinMuxX](https://github.com/gfavaro/WinMuxX), preserving its Git ancestry and local recovery and appearance fixes. Earlier WinMux/AeroSpace attribution remains in [LICENSE.txt](LICENSE.txt) and [legal](legal/README.md).
 
-**Preparation stage: the app still uses the virtual workspace backend. Native macOS Spaces are not implemented.** Existing virtual tiling behavior remains. This stage adds no private Spaces calls, Space creation, or native window transfers.
+**Experimental native Spaces backend implemented.** Global workspaces are associated with real macOS desktops. Selection switches the native Space; summon transfers windows to an empty Space on the destination display, and override swaps visible workspaces through a temporary Space. Inactive workspaces no longer use virtual corner parking. Inherited inactive-tab behavior is unchanged.
+
+Requires macOS 27+, Accessibility permission for the new app identity, and **Displays have separate Spaces** enabled (sign out and back in after changing it). Unsupported capabilities or incomplete recovery pause management; there is no silent virtual fallback. No system setting is changed automatically. Native operations use private interfaces and require interactive validation on your display setup before daily use.
 
 Release identity: `WinMuxX-Native.app`, `com.gfavaro.winmuxx.native`. Debug identity: `WinMuxX-Native-Debug`, `com.gfavaro.winmuxx.native.debug`. The bundled CLI is `winmux-native-cli`; it connects exclusively to `/tmp/com.gfavaro.winmuxx.native-<user>.sock` (debug builds use the `.debug` identity).
 
@@ -15,4 +17,12 @@ make native-build BUILD_NUMBER=1
 
 Outputs: `.release-native/WinMuxX-Native.app` and `.release-native/WinMuxX-Native-<version>-<build>.zip`. Builds never install or launch the app. Automatic updates are disabled and no update feed is bundled. A configured `CODESIGN_IDENTITY`, or identity in `${XDG_CONFIG_HOME:-~/.config}/winmux-native/signing-identity`, is preserved; otherwise signing is ad hoc. Builds are not notarized.
 
-See [HACKING.md](HACKING.md) for development, [approved native Spaces plan](docs/NATIVE_SPACES_PLAN.md), and [fixed Dinky reference](docs/DINKY_NATIVE_SPACES_REVIEW.md). Tabs are outside the future native Spaces implementation scope; inherited tab code is still present.
+The CLI can inspect capabilities and topology without altering Spaces:
+
+```sh
+.release-native/WinMuxX-Native.app/Contents/MacOS/winmux-native-cli --native-spaces-status
+```
+
+The native association/operation journal is `native-spaces.json`; restart layouts use `native-window-state.json` in the experimental Application Support directory. Pre-existing/user-created desktops are preserved; only confirmed empty, inactive, app-owned desktops may be collected. Fullscreen or shared-window transfers stop conservatively; minimized windows retain their state. Use Enable to retry after resolving a recovery condition. Release/debug instances share an exclusive state lock.
+
+See [implementation and validation](docs/NATIVE_SPACES_IMPLEMENTATION.md), [HACKING.md](HACKING.md) for development, [approved native Spaces plan](docs/NATIVE_SPACES_PLAN.md), and [fixed Dinky reference](docs/DINKY_NATIVE_SPACES_REVIEW.md). Tabs are outside the future native Spaces implementation scope; inherited tab code is still present.

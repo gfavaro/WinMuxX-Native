@@ -21,3 +21,5 @@ guides above for today's settings and development workflow.
 - [Dinky: fluxo de Spaces aproveitável](DINKY_NATIVE_SPACES_REVIEW.md)
 
 Current experimental derivative: [approved native Spaces plan](NATIVE_SPACES_PLAN.md). Preparation still uses the virtual backend.
+
+[Native backend implementation and validation](NATIVE_SPACES_IMPLEMENTATION.md) supersedes the preparation-stage backend status.

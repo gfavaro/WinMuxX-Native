@@ -284,3 +284,11 @@ extension Workspace {
         _ = Result { try process.run() }
     }
 }
+
+@MainActor
+func restoreFocusAfterNativeFailure(_ snapshot: RefreshSessionFocusSnapshot) {
+    _focus = snapshot.focus
+    _prevFocus = snapshot.prevFocus
+    _prevPrevFocus = snapshot.prevPrevFocus
+    _lastKnownFocus = snapshot.focus
+}

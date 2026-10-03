@@ -7,6 +7,9 @@ let usage =
     """
     USAGE: \(CommandLine.arguments.first ?? "winmux-native-cli") [-h|--help] [-v|--version] <subcommand> [<args>...]
 
+    DIAGNOSTICS:
+      --native-spaces-status  Read native topology and capabilities without changing Spaces.
+
     SUBCOMMANDS:
     \(subcommandDescriptions.sortedBy { $0[0] }.toPaddingTable(columnSeparator: "   ").joined(separator: "\n"))
     """
@@ -16,6 +19,10 @@ struct Main {
     static func main() async {
         let args = CommandLine.arguments.slice(1...) ?? []
 
+        if args == ["--native-spaces-status"] {
+            await printNativeSpacesStatus()
+            return
+        }
         if args.isEmpty {
             exit(1, err: usage)
         }

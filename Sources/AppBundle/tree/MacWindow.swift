@@ -55,8 +55,8 @@ final class MacWindow: Window {
             windowId,
             macApp,
             isStartup
-                ? (rect?.center.monitorApproximation ?? mainMonitor).activeWorkspace
-                : focus.workspace,
+                ? (NativeSpacesRuntime.shared.workspaceForWindow(windowId) ?? (rect?.center.monitorApproximation ?? mainMonitor).activeWorkspace)
+                : (NativeSpacesRuntime.shared.workspaceForWindow(windowId) ?? focus.workspace),
             window: nil,
         )
 
@@ -161,6 +161,7 @@ final class MacWindow: Window {
 
     @MainActor
     override func nativeFocus() {
+        guard !NativeSpacesRuntime.shared.isStagingModel else { return }
         macApp.nativeFocus(windowId)
     }
 

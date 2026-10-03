@@ -31,6 +31,16 @@ let package = Package(
     // Targets are the basic building blocks of a package, defining a module or a test suite.
     // Targets can depend on other targets in this package and products from dependencies.
     targets: [
+        .target(
+            name: "NativeSpacesPrivate",
+            publicHeadersPath: "include",
+            cSettings: [.unsafeFlags(["-fobjc-arc"])],
+            linkerSettings: [
+                .unsafeFlags(["-F/System/Library/PrivateFrameworks", "-framework", "SkyLight"]),
+                .linkedFramework("ApplicationServices"),
+                .linkedFramework("AppKit"),
+            ],
+        ),
         // Exposes the private _AXUIElementGetWindow function to swift
         .target(
             name: "PrivateApi",
@@ -54,6 +64,7 @@ let package = Package(
                 .product(name: "TOMLKit", package: "TOMLKit"),
                 .target(name: "Common"),
                 .target(name: "PrivateApi"),
+                .target(name: "NativeSpacesPrivate"),
             ],
             swiftSettings: [
                 .enableUpcomingFeature("NonisolatedNonsendingByDefault"),
@@ -76,6 +87,7 @@ let package = Package(
             name: "Cli",
             dependencies: [
                 .target(name: "Common"),
+                .target(name: "NativeSpacesPrivate"),
             ],
         ),
         .executableTarget(

@@ -22,6 +22,13 @@ struct EnableCommand: Command {
             }
             return !args.failIfNoop
         }
+        if newState {
+            do { try await NativeSpacesRuntime.shared.retryRecovery() }
+            catch {
+                NativeSpacesRuntime.shared.report(error)
+                return io.err(error.localizedDescription)
+            }
+        }
         TrayMenuModel.shared.isEnabled = newState
         if newState { WindowRecoveryController.shared.resumeTiling() }
         if !newState {
