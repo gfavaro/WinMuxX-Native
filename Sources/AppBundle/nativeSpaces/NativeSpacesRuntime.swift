@@ -247,6 +247,51 @@ final class NativeSpacesRuntime {
         if !isUnitTest { persistFrozenWorldForRestartIfPossible() }
     }
 
+    /// Desktop numbers follow the observed Mission Control order on each display.
+    /// Logical names/IDs remain stable so reordering cannot exchange layout trees.
+    func desktopIndex(_ workspace: Workspace) -> Int? {
+        guard let coordinator, let binding = coordinator.state.bindings[workspace.id.rawValue],
+              let topology = try? coordinator.driver.topology(),
+              let display = topology.displayContaining(binding.space),
+              topology.desktop(binding.space)?.uuid == binding.spaceUUID else { return nil }
+        return display.spaces.filter(\.isUser).firstIndex { $0.id == binding.space }.map { $0 + 1 }
+    }
+
+    func workspace(atDesktopIndex index: Int, on monitor: Monitor) -> Workspace? {
+        guard index > 0, let coordinator, let topology = try? coordinator.driver.topology(),
+              let display = display(for: monitor, in: topology),
+              let desktop = display.spaces.filter(\.isUser).getOrNil(atIndex: index - 1),
+              let binding = coordinator.state.bindings.values.first(where: { $0.space == desktop.id && $0.spaceUUID == desktop.uuid }) else { return nil }
+        return Workspace.existing(byName: binding.name)
+    }
+
+    func orderForPresentation(_ workspaces: [Workspace]) -> [Workspace] {
+        guard let coordinator, let topology = try? coordinator.driver.topology() else { return workspaces }
+        var ranks: [WorkspaceId: Int] = [:]
+        var rank = 0
+        for display in topology.displays {
+            for desktop in display.spaces where desktop.isUser {
+                for workspace in workspaces {
+                    if let binding = coordinator.state.bindings[workspace.id.rawValue],
+                       binding.space == desktop.id && binding.spaceUUID == desktop.uuid { ranks[workspace.id] = rank }
+                }
+                rank += 1
+            }
+        }
+        // Preserve project grouping and the stable order of unbound N+1 workspaces.
+        var result: [Workspace] = []
+        var seen: Set<WorkspaceProjectId> = []
+        for workspace in workspaces where seen.insert(workspace.projectId).inserted {
+            let members = workspaces.filter { $0.projectId == workspace.projectId }
+            result += members.enumerated().sorted {
+                let lhs = ranks[$0.element.id] ?? Int.max
+                let rhs = ranks[$1.element.id] ?? Int.max
+                return lhs == rhs ? $0.offset < $1.offset : lhs < rhs
+            }.map(\.element)
+        }
+        return result
+    }
+
     func isActuallyVisible(_ workspace: Workspace) -> Bool {
         guard let coordinator,
               let binding = coordinator.state.bindings[workspace.id.rawValue],

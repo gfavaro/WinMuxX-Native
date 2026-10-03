@@ -108,5 +108,5 @@ func orderedWorkspacesForPresentation() -> [Workspace] {
         }
     }
     result.append(contentsOf: Workspace.all.filter { !$0.isArchived && seen.insert($0.id).inserted })
-    return result
+    return NativeSpacesRuntime.shared.orderForPresentation(result)
 }

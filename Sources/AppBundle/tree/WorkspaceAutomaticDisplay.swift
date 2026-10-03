@@ -1,6 +1,7 @@
 @MainActor
 func automaticWorkspaceDisplayIndex(_ workspace: Workspace, focusedWorkspace: Workspace?) -> Int? {
-    orderedWorkspacesForPresentation()
+    if let index = NativeSpacesRuntime.shared.desktopIndex(workspace) { return index }
+    return orderedWorkspacesForPresentation()
         .filter { $0.projectId == workspace.projectId }
         .filter { userFacingWorkspaces([$0], focusedWorkspace: focusedWorkspace).contains($0) }
         .filter(\.usesAutomaticDisplayName)

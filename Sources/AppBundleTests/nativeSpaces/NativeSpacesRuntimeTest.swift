@@ -113,4 +113,29 @@ final class NativeSpacesRuntimeTest: XCTestCase {
         XCTAssertEqual(engine.state.bindings, bindings)
     }
 
+
+    func testDesktopNumberingAndCommandsFollowMissionControlReordering() async throws {
+        source.restoreNamingStyle(.automatic)
+        target.restoreNamingStyle(.automatic)
+        let display = driver.snapshot.displays[0]
+        driver.snapshot.displays[0] = NativeDisplaySnapshot(uuid: display.uuid, displayID: display.displayID, currentSpace: display.currentSpace, spaces: [display.spaces[1], NativeDesktop(id: 9, uuid: "fullscreen", isUser: false), display.spaces[0]])
+        XCTAssertEqual(automaticWorkspaceDisplayIndex(target, focusedWorkspace: source), 1)
+        XCTAssertEqual(workspaceDefaultDisplayName(source.name), "Workspace 2")
+        XCTAssertEqual(orderedWorkspacesForPresentation().filter { $0 === source || $0 === target }.map(\.id), [target.id, source.id])
+        let before = engine.state.bindings
+        let selected = try await runLightSession(.menuBarButton, .forceRun, shouldSchedulePostRefresh: false) {
+            (try await parseCommand("workspace 1").cmdOrDie.run(.defaultEnv, .emptyStdin)).exitCode == 0
+        }
+        XCTAssertTrue(selected)
+        XCTAssertTrue(focus.workspace === target)
+        XCTAssertEqual(driver.snapshot.display("left")?.currentSpace, 3)
+        XCTAssertEqual(engine.state.bindings[source.id.rawValue]?.space, before[source.id.rawValue]?.space)
+        XCTAssertEqual(engine.state.bindings[target.id.rawValue]?.space, before[target.id.rawValue]?.space)
+        XCTAssertFalse(driver.actions.contains { $0.hasPrefix("move:") })
+        driver.snapshot.displays[0] = NativeDisplaySnapshot(uuid: display.uuid, displayID: display.displayID, currentSpace: 3, spaces: display.spaces)
+        XCTAssertEqual(automaticWorkspaceDisplayIndex(source, focusedWorkspace: target), 1)
+        XCTAssertEqual(automaticWorkspaceDisplayIndex(target, focusedWorkspace: target), 2)
+        XCTAssertTrue(NativeSpacesRuntime.shared.workspace(atDesktopIndex: 1, on: mainMonitor) === source)
+    }
+
 }

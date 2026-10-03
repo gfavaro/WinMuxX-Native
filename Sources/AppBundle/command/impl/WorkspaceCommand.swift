@@ -131,6 +131,10 @@ private func createNextTransientBlankWorkspaceIfAllowed(
 @MainActor
 private func findDirectWorkspaceTarget(named workspaceName: String, from current: Workspace) -> Workspace? {
     if let targetIndex = parsePositiveWorkspaceDisplayIndex(workspaceName) {
+        if NativeSpacesRuntime.shared.isNative,
+           let workspace = NativeSpacesRuntime.shared.workspace(atDesktopIndex: targetIndex, on: current.workspaceMonitor) {
+            return workspace
+        }
         if let workspace = scopedAutomaticDisplayWorkspaces(current: current).getOrNil(atIndex: targetIndex - 1) {
             return workspace
         }
