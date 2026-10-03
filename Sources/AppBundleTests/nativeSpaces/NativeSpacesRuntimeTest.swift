@@ -75,4 +75,42 @@ final class NativeSpacesRuntimeTest: XCTestCase {
         XCTAssertEqual(driver.snapshot.display("left")?.currentSpace, 3)
         XCTAssertFalse(driver.actions.contains { $0.hasPrefix("activate:") })
     }
+
+    func testAdoptsEmptyExternalDesktopsWithoutMutationsOrDuplicates() throws {
+        let display = driver.snapshot.displays[0]
+        driver.snapshot.displays[0] = NativeDisplaySnapshot(uuid: display.uuid, displayID: display.displayID, currentSpace: display.currentSpace, spaces: display.spaces + [NativeDesktop(id: 8, uuid: "empty", isUser: true), NativeDesktop(id: 9, uuid: "fullscreen", isUser: false)])
+        try NativeSpacesRuntime.shared.observeTopology()
+        let binding = try XCTUnwrap(engine.state.bindings.values.first { $0.space == 8 })
+        let workspace = try XCTUnwrap(Workspace.existing(byName: binding.name))
+        XCTAssertTrue(NativeSpacesRuntime.shared.retainsExternalDesktop(workspace))
+        XCTAssertNil(engine.state.bindings.values.first { $0.space == 9 })
+        XCTAssertTrue(engine.state.ownedSpaces.isEmpty)
+        XCTAssertTrue(driver.actions.isEmpty)
+        let bindings = engine.state.bindings
+        try NativeSpacesRuntime.shared.observeTopology()
+        XCTAssertEqual(engine.state.bindings, bindings)
+    }
+
+    func testStartupReusesOwnedDesktopButRefreshDoesNotAdoptStagingSlot() throws {
+        let display = driver.snapshot.displays[0]
+        driver.snapshot.displays[0] = NativeDisplaySnapshot(uuid: display.uuid, displayID: display.displayID, currentSpace: display.currentSpace, spaces: display.spaces + [NativeDesktop(id: 8, uuid: "owned", isUser: true)])
+        var state = engine.state
+        state.ownedSpaces.append(NativeOwnedSpace(id: 8, uuid: "owned", display: "left"))
+        try engine.store.save(state)
+        engine = try NativeSpaceCoordinator(driver: driver, store: engine.store, attempts: 3)
+        NativeSpacesRuntime.shared.installForTests(engine, windows: [driver.identity(11), driver.identity(13)])
+        try NativeSpacesRuntime.shared.observeTopology()
+        XCTAssertNil(engine.state.bindings.values.first { $0.space == 8 })
+        try NativeSpacesRuntime.shared.observeTopology(adoptExistingOwnedSpaces: true)
+        let binding = try XCTUnwrap(engine.state.bindings.values.first { $0.space == 8 })
+        let workspace = try XCTUnwrap(Workspace.existing(byName: binding.name))
+        XCTAssertTrue(NativeSpacesRuntime.shared.retainsExternalDesktop(workspace))
+        XCTAssertTrue(workspaceShouldSurviveReconciliation(workspace, retainedEmptyWorkspaceIds: [:]))
+        XCTAssertEqual(engine.state.ownedSpaces, state.ownedSpaces)
+        XCTAssertTrue(driver.actions.isEmpty)
+        let bindings = engine.state.bindings
+        try NativeSpacesRuntime.shared.observeTopology(adoptExistingOwnedSpaces: true)
+        XCTAssertEqual(engine.state.bindings, bindings)
+    }
+
 }

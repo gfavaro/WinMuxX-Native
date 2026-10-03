@@ -17,8 +17,8 @@ final class ConfigBootstrapTest: XCTestCase {
         XCTAssertEqual(bindingMap["alt-space"], "layout horizontal vertical")
         XCTAssertEqual(bindingMap["ctrl-f"], "open-sidebar")
         XCTAssertEqual(bindingMap["alt-h"], "focus left")
-        XCTAssertEqual(bindingMap["alt-1"], "focus --tab-index 1")
-        XCTAssertEqual(bindingMap["alt-0"], "focus --tab-index 10")
+        for index in 1...9 { XCTAssertEqual(bindingMap["alt-\(index)"], "workspace \(index)") }
+        XCTAssertEqual(bindingMap["alt-0"], "workspace 10")
         XCTAssertEqual(bindingMap["alt-tab"], "focus tab-next")
         XCTAssertEqual(bindingMap["alt-shift-tab"], "focus tab-prev")
         XCTAssertEqual(bindingMap["alt-n"], "focus dfs-next")

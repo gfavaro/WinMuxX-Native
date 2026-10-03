@@ -30,6 +30,7 @@ final class NativeSpacesRuntime {
     private var lockFD: Int32 = -1
     private var nativeTask: Task<Void, Error>?
     private var lastObservedActive: [String: String] = [:]
+    private var retainedStartupDesktopUUIDs: Set<String> = []
     private var testWindowIdentities: [UInt32: NativeWindowIdentity] = [:]
 
     var isNative: Bool { coordinator != nil }
@@ -62,7 +63,7 @@ final class NativeSpacesRuntime {
         defer { nativeTask = nil }
         try await recovery.value
         try restoreWorkspaceBindings()
-        try observeTopology()
+        try observeTopology(adoptExistingOwnedSpaces: true)
     }
 
     func installForTests(_ coordinator: NativeSpaceCoordinator?, windows: [NativeWindowIdentity] = []) {
@@ -71,6 +72,7 @@ final class NativeSpacesRuntime {
         failure = nil
         isStagingModel = false
         lastObservedActive = [:]
+        retainedStartupDesktopUUIDs = []
         testWindowIdentities = Dictionary(uniqueKeysWithValues: windows.map { ($0.id, $0) })
     }
 
@@ -132,7 +134,7 @@ final class NativeSpacesRuntime {
     func retainsExternalDesktop(_ workspace: Workspace) -> Bool {
         guard let coordinator,
               let binding = coordinator.state.bindings[workspace.id.rawValue],
-              !coordinator.state.ownedSpaces.contains(where: { $0.id == binding.space }),
+              (!coordinator.state.ownedSpaces.contains(where: { $0.id == binding.space && $0.uuid == binding.spaceUUID }) || retainedStartupDesktopUUIDs.contains(binding.spaceUUID)),
               let topology = try? coordinator.driver.topology() else { return false }
         return topology.desktop(binding.space)?.isUser == true
     }
@@ -146,15 +148,21 @@ final class NativeSpacesRuntime {
 
     /// Follow Mission Control and manual window transfers before deriving desired state.
     /// Fullscreen keeps the underlying workspace and its global layout untouched.
-    func observeTopology() throws {
+    func observeTopology(adoptExistingOwnedSpaces: Bool = false) throws {
         guard let coordinator, failure == nil, coordinator.state.pending == nil else { return }
         let topology = try coordinator.driver.topology()
+        if adoptExistingOwnedSpaces {
+            retainedStartupDesktopUUIDs.formUnion(topology.displays.flatMap(\.spaces).filter { $0.isUser && !$0.uuid.isEmpty }.map(\.uuid))
+        }
         var adopted: [NativeSpaceBinding] = []
         var bound = Set(coordinator.state.bindings.values.map(\.space))
         for display in topology.displays {
             guard let monitor = monitor(for: display) else { throw NativeSpaceError.topology("cannot match physical display to monitor") }
-            for desktop in display.spaces where desktop.isUser && !bound.contains(desktop.id) && !coordinator.state.ownedSpaces.contains(where: { $0.id == desktop.id }) {
-                if try desktop.id != display.currentSpace && coordinator.driver.occupants(desktop.id).isEmpty { continue }
+            for desktop in display.spaces where desktop.isUser && !bound.contains(desktop.id) {
+                // At startup reuse every desktop, including empty ones and surviving
+                // app-owned slots. Refresh must not adopt a retired swap staging Space.
+                let owned = coordinator.state.ownedSpaces.contains { $0.id == desktop.id && $0.uuid == desktop.uuid }
+                if owned && !adoptExistingOwnedSpaces { continue }
                 let existing: Workspace?
                 if desktop.id == display.currentSpace,
                    let candidate = winMuxWorkspaceState.visibleWorkspace(for: monitor),
@@ -163,7 +171,7 @@ final class NativeSpacesRuntime {
                 } else { existing = nil }
                 let workspace = existing ?? createBlankWorkspace(projectId: activeWorkspaceProjectId(for: monitor), monitor: monitor)
                 workspace.markAsSidebarManaged()
-                // Pre-existing or user-created desktops are adopted, never marked owned.
+                // Adoption preserves existing ownership; external desktops are never claimed.
                 adopted.append(NativeSpaceBinding(workspace: workspace.id.rawValue, name: workspace.name, project: workspace.projectId.rawValue, display: display.uuid, space: desktop.id, spaceUUID: desktop.uuid, namingStyle: workspace.namingStyle))
                 bound.insert(desktop.id)
             }
