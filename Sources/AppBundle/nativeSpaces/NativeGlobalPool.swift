@@ -123,13 +123,8 @@ extension NativeSpaceCoordinator {
                 try store.save(observed)
                 state = observed
             }
-            if state.ownedSpaces.contains(where: { owned in
-                !state.bindings.values.contains { $0.spaceUUID == owned.uuid } &&
-                    !pool.homes.values.contains { $0.spaceUUID == owned.uuid } && !pool.carriers.values.contains { $0.uuid == owned.uuid }
-            }) {
-                do { try await collectUnusedOwnedSpaces(); collectionError = nil }
-                catch { collectionError = error.localizedDescription }
-            }
+            do { try await maintainPoolSpaces(); collectionError = nil }
+            catch { collectionError = error.localizedDescription }
             return
         }
         let original = state
@@ -296,7 +291,58 @@ extension NativeSpaceCoordinator {
             catch { throw NativeSpaceError.recoveryRequired(error.localizedDescription) }
             throw error
         }
-        do { try await collectUnusedOwnedSpaces(); collectionError = nil }
+        do { try await maintainPoolSpaces(); collectionError = nil }
         catch { collectionError = error.localizedDescription }
+    }
+
+    /// The native pool owns the secondary display's desktop topology: one carrier.
+    /// External extra desktops may be removed only after their content was reconciled.
+    func maintainPoolSpaces() async throws {
+        guard let pool = state.pool, state.pending == nil else { return }
+        if state.ownedSpaces.contains(where: { owned in
+            !state.bindings.values.contains { $0.spaceUUID == owned.uuid } &&
+                !pool.homes.values.contains { $0.spaceUUID == owned.uuid } && !pool.carriers.values.contains { $0.uuid == owned.uuid }
+        }) { try await collectUnusedOwnedSpaces() }
+        for display in try driver.topology().displays where display.uuid != pool.effectiveDisplay {
+            guard let carrier = pool.carriers[display.uuid],
+                  display.spaces.contains(where: { $0.uuid == carrier.uuid && $0.isUser }) else { continue }
+            for desktop in display.spaces where desktop.isUser && desktop.uuid != carrier.uuid {
+                guard !state.bindings.values.contains(where: { $0.spaceUUID == desktop.uuid }),
+                      !pool.homes.values.contains(where: { $0.spaceUUID == desktop.uuid }) else { continue }
+                let extra = NativeOwnedSpace(id: desktop.id, uuid: desktop.uuid, display: display.uuid)
+                guard canRemoveSecondaryExtra(extra) else {
+                    if try !driver.occupants(extra.id).isEmpty {
+                        throw NativeSpaceError.topology("secondary desktop \(extra.id) still contains unreconciled windows; preserved")
+                    }
+                    continue
+                }
+                // This records deletion intent without claiming the external Space as owned.
+                state.deleting = extra
+                try store.save(state)
+                guard canRemoveSecondaryExtra(extra) else {
+                    state.deleting = nil
+                    try store.save(state)
+                    continue
+                }
+                try await driver.destroy(extra.id)
+                try await wait("removal of secondary Space \(extra.id)") { try self.driver.topology().desktop(extra.id) == nil }
+                state.ownedSpaces.removeAll { $0.uuid == extra.uuid }
+                state.deleting = nil
+                try store.save(state)
+            }
+        }
+    }
+
+    private func canRemoveSecondaryExtra(_ extra: NativeOwnedSpace) -> Bool {
+        guard state.pending == nil, let pool = state.pool, extra.display != pool.effectiveDisplay,
+              let topology = try? driver.topology(), let display = topology.display(extra.display),
+              let carrier = pool.carriers[extra.display], display.currentSpace == carrier.id,
+              display.spaces.contains(where: { $0.id == carrier.id && $0.uuid == carrier.uuid && $0.isUser }),
+              display.spaces.contains(where: { $0.id == extra.id && $0.uuid == extra.uuid && $0.isUser }),
+              extra.uuid != carrier.uuid,
+              !state.bindings.values.contains(where: { $0.spaceUUID == extra.uuid }),
+              !pool.homes.values.contains(where: { $0.spaceUUID == extra.uuid }),
+              let occupants = try? driver.occupants(extra.id), occupants.isEmpty else { return false }
+        return true
     }
 }

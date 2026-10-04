@@ -4,6 +4,8 @@ Experimental, independent public derivative of [gfavaro/WinMuxX](https://github.
 
 **Experimental native Spaces backend implemented.** Global workspaces are associated with real macOS desktops. The main display hosts a fixed home Space for each workspace; secondary displays reuse a presentation Space. Selection restores the outgoing workspace to its home and presents the incoming workspace. Selecting a workspace already visible elsewhere focuses that display; summon relocates it, and override swaps visible workspaces through a temporary secondary Space. Inactive workspaces no longer use virtual corner parking. Inherited inactive-tab behavior is unchanged.
 
+Each secondary display is consolidated to one ordinary desktop after synchronization. Extra manually created desktops are removed once empty; windows are reconciled into the global pool first. Native fullscreen Spaces remain separate, and unidentified occupants defer cleanup with a diagnostic.
+
 Requires macOS 27+, Accessibility permission for the new app identity, and **Displays have separate Spaces** enabled (sign out and back in after changing it). Unsupported capabilities or incomplete recovery pause management; there is no silent virtual fallback. No system setting is changed automatically. Native operations use private interfaces and require interactive validation on your display setup before daily use.
 
 Release identity: `WinMuxX-Native.app`, `com.gfavaro.winmuxx.native`. Debug identity: `WinMuxX-Native-Debug`, `com.gfavaro.winmuxx.native.debug`. The bundled CLI is `winmux-native-cli`; it connects exclusively to `/tmp/com.gfavaro.winmuxx.native-<user>.sock` (debug builds use the `.debug` identity).

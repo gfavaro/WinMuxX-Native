@@ -80,6 +80,29 @@ final class NativePoolRuntimeTest: XCTestCase {
         XCTAssertEqual(driver.windows[12], [engine.state.pool!.homes[b.id.rawValue]!.space])
     }
 
+    func testSelectingNewSecondaryDesktopReusesCarrierAndAbsorbsWorkspaceIntoPool() async throws {
+        let right = driver.snapshot.displays[1]
+        driver.snapshot.displays[1] = NativeDisplaySnapshot(uuid: right.uuid, displayID: right.displayID,
+            currentSpace: 8, spaces: right.spaces + [NativeDesktop(id: 8, uuid: "manual", isUser: true)])
+        try NativeSpacesRuntime.shared.observeTopology()
+        let adopted = try XCTUnwrap(engine.state.bindings.values.first { $0.spaceUUID == "manual" })
+        XCTAssertEqual(engine.state.pool?.carriers["right"]?.id, 2)
+        let workspace = try XCTUnwrap(Workspace.existing(byName: adopted.name))
+        XCTAssertTrue(secondary.activeWorkspace === workspace)
+        _ = TestWindow.new(id: 99, parent: workspace.rootTilingContainer)
+        driver.windows[99] = [8]
+        driver.identities[99] = driver.identity(99)
+        NativeSpacesRuntime.shared.installForTests(engine, windows: [11, 12, 13, 99].map { driver.identity($0) })
+        try await NativeSpacesRuntime.shared.synchronize()
+        XCTAssertEqual(engine.state.bindings[workspace.id.rawValue]?.space, 2)
+        XCTAssertEqual(driver.snapshot.display("right")?.currentSpace, 2)
+        XCTAssertEqual(driver.snapshot.display("right")?.spaces.filter(\.isUser).count, 1)
+        XCTAssertNotNil(engine.state.pool?.homes[workspace.id.rawValue])
+        XCTAssertNil(driver.snapshot.desktop(8))
+        XCTAssertEqual(driver.windows[99], [2])
+        XCTAssertEqual(driver.windows[12], [engine.state.pool!.homes[b.id.rawValue]!.space])
+    }
+
     func testHiddenOwnedOriginSurvivesBeforeAccessibilityWindowsAreDiscovered() throws {
         engine.state.pool?.retained.remove(c.id.rawValue)
         engine.state.ownedSpaces.append(NativeOwnedSpace(id: 3, uuid: "three", display: "left"))

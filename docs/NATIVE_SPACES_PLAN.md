@@ -25,3 +25,5 @@ Reference: mikker/Dinky commit `e05ae28f3e814bbae1cf171567be14e0dcba6548`. Read 
 ## Global-pool revision
 
 The accepted follow-up fixes an origin Space for each global workspace on the preferred main display and reuses one presentation Space per secondary. This supersedes retiring the old origin on each transfer. See [global pool](NATIVE_GLOBAL_POOL.md) for migration, topology and selection semantics.
+
+The subsequent single-secondary-desktop policy supersedes the earlier prohibition on removing user-created desktops on secondary displays: empty extras are removed after confirmed transfers, while primary origins and fullscreen Spaces are preserved. Unknown occupants defer cleanup.

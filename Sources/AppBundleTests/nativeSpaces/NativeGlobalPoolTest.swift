@@ -142,6 +142,33 @@ final class NativeGlobalPoolTest: XCTestCase {
         XCTAssertEqual(saves, 0)
     }
 
+    func testEmptyExternalSecondaryDesktopIsRemovedButPrimaryAndFullscreenRemain() async throws {
+        try await initialize()
+        let right = driver.snapshot.displays[1]
+        driver.snapshot.displays[1] = NativeDisplaySnapshot(uuid: right.uuid, displayID: right.displayID,
+            currentSpace: right.currentSpace, spaces: right.spaces + [NativeDesktop(id: 8, uuid: "extra", isUser: true), NativeDesktop(id: 9, uuid: "fullscreen", isUser: false)])
+        driver.actions = []
+        try await engine.synchronize(baseline, activate: ["left", "right"])
+        XCTAssertNil(driver.snapshot.desktop(8))
+        XCTAssertNotNil(driver.snapshot.desktop(9))
+        XCTAssertNotNil(driver.snapshot.desktop(3))
+        XCTAssertEqual(driver.actions, ["destroy:8"])
+        XCTAssertNil(engine.state.deleting)
+        XCTAssertFalse(engine.state.ownedSpaces.contains { $0.id == 8 })
+    }
+
+    func testUnknownContentInSecondaryExtraIsPreservedAndDiagnosed() async throws {
+        try await initialize()
+        let right = driver.snapshot.displays[1]
+        driver.snapshot.displays[1] = NativeDisplaySnapshot(uuid: right.uuid, displayID: right.displayID,
+            currentSpace: right.currentSpace, spaces: right.spaces + [NativeDesktop(id: 8, uuid: "extra", isUser: true)])
+        driver.windows[99] = [8]
+        try await engine.synchronize(baseline, activate: ["left", "right"])
+        XCTAssertNotNil(driver.snapshot.desktop(8))
+        XCTAssertEqual(driver.windows[99], [8])
+        XCTAssertTrue(engine.collectionError?.contains("unreconciled") == true)
+    }
+
     func testPoolFollowsRelocatedUUIDsAndReturnsToPreferredDisplay() async throws {
         try await initialize()
         let order = try engine.orderedPoolKeys()

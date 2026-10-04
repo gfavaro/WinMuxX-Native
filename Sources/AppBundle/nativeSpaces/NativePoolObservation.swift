@@ -96,9 +96,14 @@ extension NativeSpacesRuntime {
                 pool.homes.values.first(where: { $0.space == physical.currentSpace && $0.spaceUUID == topology.desktop(physical.currentSpace)?.uuid })
             guard let current, let workspace = Workspace.existing(byName: current.name) else { continue }
             if physical.uuid != primary.uuid, pool.carriers[physical.uuid]?.uuid != current.spaceUUID {
-                if let previous = pool.carriers[physical.uuid] { pool.retiredUUIDs.insert(previous.uuid) }
-                pool.carriers[physical.uuid] = NativeSpaceReference(id: current.space, uuid: current.spaceUUID, display: physical.uuid)
-                changed = true
+                // Selecting an extra desktop changes the workspace, not the display's
+                // carrier. Synchronization moves its content into the fixed carrier.
+                let existing = pool.carriers[physical.uuid]
+                if existing == nil || !physical.spaces.contains(where: { $0.uuid == existing?.uuid && $0.isUser }) {
+                    if let previous = existing { pool.retiredUUIDs.insert(previous.uuid) }
+                    pool.carriers[physical.uuid] = NativeSpaceReference(id: current.space, uuid: current.spaceUUID, display: physical.uuid)
+                    changed = true
+                }
             }
             let viewportId = MonitorViewportId(targetMonitor)
             var viewport = winMuxWorkspaceState.monitorViewportsById[viewportId] ?? MonitorViewport(id: viewportId)
