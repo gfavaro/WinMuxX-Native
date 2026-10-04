@@ -1,5 +1,6 @@
 @testable import AppBundle
 import Foundation
+import NativeSpacesPrivate
 import XCTest
 
 @MainActor
@@ -31,6 +32,16 @@ final class NativeGlobalPoolTest: XCTestCase {
     }
 
     private func initialize() async throws { try await engine.synchronize(baseline, activate: ["left", "right"]) }
+
+    func testNativeContentClassificationPreservesDocumentsAndAuxiliaries() {
+        XCTAssertTrue(winmux_native_is_content_window(0, 1))
+        XCTAssertTrue(winmux_native_is_content_window(0, (1 << 1) | (1 << 31)))
+        XCTAssertTrue(winmux_native_is_content_window(12, 0))
+        XCTAssertTrue(winmux_native_is_content_window(0, 0x300000100480001)) // hidden/minimized document
+        XCTAssertFalse(winmux_native_is_content_window(0, 0x8004204000019400)) // wallpaper
+        XCTAssertFalse(winmux_native_is_content_window(0, 0x12021000c2202)) // display dimmer
+        XCTAssertFalse(winmux_native_is_content_window(0, 0x8140000d000400)) // menu chrome
+    }
 
     func testMalformedPoolIsRejectedBeforeRuntimeCanUseDuplicateIdentities() throws {
         var malformed = engine.state
@@ -145,6 +156,18 @@ final class NativeGlobalPoolTest: XCTestCase {
         XCTAssertTrue(engine.state.pool!.homes.values.allSatisfy { $0.display == "left" })
         XCTAssertEqual(driver.windows[11], [1])
         XCTAssertEqual(engine.state.pool?.carriers["right"]?.id, 1)
+    }
+
+    func testUnchangedCarrierMayKeepAuxiliaryOccupantsButCannotBeReassigned() async throws {
+        driver.windows[99] = [2]
+        try await initialize()
+        XCTAssertEqual(driver.windows[99], [2])
+        driver.actions = []
+        do {
+            try await engine.synchronize([request("a", "left", true, [11]), request("b", "left", false, [12]), request("c", "right", true, [13])], activate: ["right"])
+            XCTFail("auxiliary occupant must prevent carrier reassignment")
+        } catch {}
+        XCTAssertFalse(driver.actions.contains { $0.hasPrefix("move:") })
     }
 
     func testUntrackedDestinationAndDiskFailurePreventWindowDispatch() async throws {

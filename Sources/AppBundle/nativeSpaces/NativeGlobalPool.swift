@@ -219,6 +219,10 @@ extension NativeSpaceCoordinator {
             let allWindows = Set(requests.flatMap(\.windows).map(\.id))
             guard Set(destinations.values.map(\.space)).count == destinations.count else { throw NativeSpaceError.topology("pool destinations overlap") }
             for destination in destinations.values {
+                // An unchanged placement may contain auxiliary AX windows that the
+                // tiling model intentionally excludes. Guard slots before reassigning
+                // them to a different workspace; never move or delete those occupants.
+                if original.bindings[destination.workspace]?.spaceUUID == destination.spaceUUID { continue }
                 guard Set(try driver.occupants(destination.space)).isSubset(of: allWindows) else {
                     throw NativeSpaceError.topology("pool destination contains untracked windows")
                 }
