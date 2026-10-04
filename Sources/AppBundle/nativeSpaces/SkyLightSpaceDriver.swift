@@ -60,14 +60,11 @@ final class SkyLightSpaceDriver: NativeSpaceDriver {
     func isAlive(_ window: NativeWindowIdentity) throws -> Bool {
         guard let running = NSRunningApplication(processIdentifier: window.pid), !running.isTerminated,
               running.launchDate == window.launchDate else { return false }
-        guard let records = CGWindowListCopyWindowInfo(.optionIncludingWindow, window.id) as? [[String: Any]] else {
-            throw NativeSpaceError.unsafeWindow(window.id)
-        }
-        guard let record = records.first(where: { ($0[kCGWindowNumber as String] as? NSNumber)?.uint32Value == window.id }) else {
-            // A destroyed window in an app that is still alive must not be moved if its ID was reused.
-            return false
-        }
-        return (record[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == window.pid
+        // CoreGraphics omits records for windows on inactive Spaces. Resolve the
+        // WindowServer owner directly so hidden content still participates in moves,
+        // while PID + launch date protect against a reused window ID.
+        guard let owner = winmux_native_window_owner_pid(window.id) else { return false }
+        return owner.int32Value == window.pid
     }
 
     func create(on display: String) async throws -> UInt64 {

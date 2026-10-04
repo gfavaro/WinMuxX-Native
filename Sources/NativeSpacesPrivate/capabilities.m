@@ -49,3 +49,11 @@ NSArray<NSNumber *> *winmux_native_window_spaces(uint32_t windowID) {
 bool winmux_native_is_content_window(uint32_t parentID, uint64_t tags) {
     return parentID != 0 || dinky_has_document_tags(tags);
 }
+
+NSNumber *winmux_native_window_owner_pid(uint32_t windowID) {
+    int owner = 0;
+    pid_t pid = 0;
+    if (SLSGetWindowOwner(dinky_connection(), windowID, &owner) != kCGErrorSuccess ||
+        SLSConnectionGetPID(owner, &pid) != kCGErrorSuccess || pid <= 0) return nil;
+    return @(pid);
+}
