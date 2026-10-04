@@ -288,7 +288,7 @@ extension WorkspaceSidebarWorkspaceSection {
     }
 
     var inUseOverrideOverlay: some View {
-        WorkspaceSidebarInUseOverrideOverlay(text: inUseOverrideText) {
+        WorkspaceSidebarInUseOverrideOverlay(text: inUseOverrideText, isCompact: isCompact) {
             activeInUseOverrideWorkspaceName = nil
             actions.send(.overrideWorkspaceInUse(workspace.name))
         }
