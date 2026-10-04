@@ -47,7 +47,10 @@ NSArray<NSNumber *> *winmux_native_window_spaces(uint32_t windowID) {
 }
 
 bool winmux_native_is_content_window(uint32_t parentID, uint64_t tags) {
-    return parentID != 0 || dinky_has_document_tags(tags);
+    bool modal = (tags & (1ULL << 1)) && (tags & (1ULL << 31));
+    // Safari and other apps keep non-cycling document-shaped utility surfaces
+    // without AX windows. They follow the desktop UI, rather than a workspace.
+    return parentID != 0 || modal || dinky_is_document_kind(parentID, tags);
 }
 
 NSNumber *winmux_native_window_owner_pid(uint32_t windowID) {

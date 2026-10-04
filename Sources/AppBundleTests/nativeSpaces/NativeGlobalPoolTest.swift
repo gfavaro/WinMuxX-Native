@@ -40,6 +40,7 @@ final class NativeGlobalPoolTest: XCTestCase {
         XCTAssertTrue(winmux_native_is_content_window(0, 0x300000100480001)) // hidden/minimized document
         XCTAssertFalse(winmux_native_is_content_window(0, 0x8004204000019400)) // wallpaper
         XCTAssertFalse(winmux_native_is_content_window(0, 0x12021000c2202)) // display dimmer
+        XCTAssertFalse(winmux_native_is_content_window(0, 0x1400c0201)) // non-cycling Safari utility surface
         XCTAssertFalse(winmux_native_is_content_window(0, 0x8140000d000400)) // menu chrome
     }
 
