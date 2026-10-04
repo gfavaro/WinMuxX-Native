@@ -51,6 +51,9 @@ final class SkyLightSpaceDriver: NativeSpaceDriver {
         // Sticky windows join multiple desktops. They cannot be owned by a single
         // workspace; preserve them on all Spaces and exclude them from empty checks.
         return try windows.map(\.uint32Value).filter { id in
+            // Sidebar, settings and warning panels belong to this app, never to
+            // a workspace. They remain on their display when its carrier is reused.
+            if winmux_native_window_owner_pid(id)?.int32Value == ProcessInfo.processInfo.processIdentifier { return false }
             let memberships = try memberships(id)
             guard !memberships.isEmpty else { throw NativeSpaceError.unsafeWindow(id) }
             return memberships == [space]
