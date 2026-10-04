@@ -29,12 +29,13 @@ final class NativeSpacesRuntime {
     private(set) var isStagingModel = false
     private var lockFD: Int32 = -1
     private var nativeTask: Task<Void, Error>?
-    private var lastObservedActive: [String: String] = [:]
+    var lastObservedActive: [String: String] = [:]
     private var retainedStartupDesktopUUIDs: Set<String> = []
+    private var poolObservationCheckpoint: NativeLogicalCheckpoint?
     private var testWindowIdentities: [UInt32: NativeWindowIdentity] = [:]
 
     var isNative: Bool { coordinator != nil }
-    var shouldSerializeSessions: Bool { !isUnitTest && !serverArgs.isReadOnly }
+    var shouldSerializeSessions: Bool { (!isUnitTest || coordinator?.state.pool != nil) && !serverArgs.isReadOnly }
     var mayWriteFrames: Bool { isUnitTest || serverArgs.isReadOnly || (isNative && failure == nil && !isStagingModel) }
 
     func start() async throws {
@@ -64,16 +65,25 @@ final class NativeSpacesRuntime {
         try await recovery.value
         try restoreWorkspaceBindings()
         try observeTopology(adoptExistingOwnedSpaces: true)
+        guard let primary = display(for: mainMonitor, in: try driver.topology()) else { throw NativeSpaceError.topology("cannot identify the main display") }
+        try engine.configurePool(on: primary.uuid)
     }
 
     func installForTests(_ coordinator: NativeSpaceCoordinator?, windows: [NativeWindowIdentity] = []) {
         precondition(isUnitTest)
+        poolObservationCheckpoint = nil
         self.coordinator = coordinator
         failure = nil
         isStagingModel = false
         lastObservedActive = [:]
         retainedStartupDesktopUUIDs = []
         testWindowIdentities = Dictionary(uniqueKeysWithValues: windows.map { ($0.id, $0) })
+    }
+
+    var hasPoolObservationChanges: Bool { poolObservationCheckpoint != nil }
+
+    func capturePoolObservationCheckpoint() {
+        if poolObservationCheckpoint == nil { poolObservationCheckpoint = NativeLogicalCheckpoint() }
     }
 
     func beginModelChanges() { if isNative { isStagingModel = true } }
@@ -120,6 +130,9 @@ final class NativeSpacesRuntime {
                 // the native-specific restart snapshot without importing virtual state.
                 let workspace = Workspace.get(byName: saved.name)
                 workspace.assignProject(WorkspaceProjectId(saved.project))
+                if coordinator.state.pool != nil {
+                    restored[workspace.id.rawValue] = NativeSpaceBinding(workspace: workspace.id.rawValue, name: saved.name, project: saved.project, display: saved.display, space: saved.space, spaceUUID: saved.spaceUUID, namingStyle: saved.namingStyle)
+                }
                 continue
             }
             let workspace = Workspace.get(byName: saved.name)
@@ -132,6 +145,7 @@ final class NativeSpacesRuntime {
     }
 
     func retainsExternalDesktop(_ workspace: Workspace) -> Bool {
+        if coordinator?.state.pool?.retained.contains(workspace.id.rawValue) == true { return true }
         guard let coordinator,
               let binding = coordinator.state.bindings[workspace.id.rawValue],
               (!coordinator.state.ownedSpaces.contains(where: { $0.id == binding.space && $0.uuid == binding.spaceUUID }) || retainedStartupDesktopUUIDs.contains(binding.spaceUUID)),
@@ -142,7 +156,8 @@ final class NativeSpacesRuntime {
     func workspaceForWindow(_ window: UInt32) -> Workspace? {
         guard let coordinator, failure == nil,
               let spaces = try? coordinator.driver.memberships(window), spaces.count == 1,
-              let binding = coordinator.state.bindings.values.first(where: { $0.space == spaces[0] }) else { return nil }
+              let topology = try? coordinator.driver.topology(),
+              let binding = coordinator.state.bindings.values.first(where: { $0.space == spaces[0] && ($0.spaceUUID.isEmpty || $0.spaceUUID == topology.desktop(spaces[0])?.uuid) }) ?? coordinator.state.pool?.homes.values.first(where: { $0.space == spaces[0] && $0.spaceUUID == topology.desktop(spaces[0])?.uuid }) else { return nil }
         return Workspace.existing(byName: binding.name)
     }
 
@@ -150,6 +165,7 @@ final class NativeSpacesRuntime {
     /// Fullscreen keeps the underlying workspace and its global layout untouched.
     func observeTopology(adoptExistingOwnedSpaces: Bool = false) throws {
         guard let coordinator, failure == nil, coordinator.state.pending == nil else { return }
+        if coordinator.state.pool != nil { try observePoolTopology(isStartup: adoptExistingOwnedSpaces); return }
         let topology = try coordinator.driver.topology()
         if adoptExistingOwnedSpaces {
             retainedStartupDesktopUUIDs.formUnion(topology.displays.flatMap(\.spaces).filter { $0.isUser && !$0.uuid.isEmpty }.map(\.uuid))
@@ -161,6 +177,9 @@ final class NativeSpacesRuntime {
             for desktop in display.spaces where desktop.isUser && !bound.contains(desktop.id) {
                 // At startup reuse every desktop, including empty ones and surviving
                 // app-owned slots. Refresh must not adopt a retired swap staging Space.
+                if adoptExistingOwnedSpaces && display.uuid != self.display(for: mainMonitor, in: topology)?.uuid && desktop.id != display.currentSpace {
+                    if try coordinator.driver.occupants(desktop.id).isEmpty { continue }
+                }
                 let owned = coordinator.state.ownedSpaces.contains { $0.id == desktop.id && $0.uuid == desktop.uuid }
                 if owned && !adoptExistingOwnedSpaces { continue }
                 let existing: Workspace?
@@ -217,7 +236,10 @@ final class NativeSpacesRuntime {
         var activate: Set<String> = []
         for workspace in Workspace.all {
             let display: NativeDisplaySnapshot?
-            if !workspace.isVisible,
+            if !workspace.isVisible, let pool = coordinator.state.pool,
+               let primary = topology.display(pool.preferredDisplay) ?? topology.display(pool.effectiveDisplay) ?? topology.displays.first {
+                display = primary
+            } else if !workspace.isVisible,
                let binding = coordinator.state.bindings[workspace.id.rawValue],
                let connected = topology.displayContaining(binding.space) {
                 // Hidden workspaces retain their actual location until summoned. A layout
@@ -241,7 +263,14 @@ final class NativeSpacesRuntime {
         let task = Task { @MainActor in try await coordinator.synchronize(requests, activate: activate) }
         nativeTask = task
         defer { nativeTask = nil }
-        try await task.value
+        do {
+            try await task.value
+            poolObservationCheckpoint = nil
+        } catch {
+            poolObservationCheckpoint?.restore()
+            poolObservationCheckpoint = nil
+            throw error
+        }
         for request in requests where request.visible { lastObservedActive[request.display] = request.key }
         // Crash recovery must include the current native tree, not only clean-quit state.
         if !isUnitTest { persistFrozenWorldForRestartIfPossible() }
@@ -250,6 +279,7 @@ final class NativeSpacesRuntime {
     /// Desktop numbers follow the observed Mission Control order on each display.
     /// Logical names/IDs remain stable so reordering cannot exchange layout trees.
     func desktopIndex(_ workspace: Workspace) -> Int? {
+        if coordinator?.state.pool != nil { return globalPoolKeys().firstIndex(of: workspace.id.rawValue).map { $0 + 1 } }
         guard let coordinator, let binding = coordinator.state.bindings[workspace.id.rawValue],
               let topology = try? coordinator.driver.topology(),
               let display = topology.displayContaining(binding.space),
@@ -258,6 +288,10 @@ final class NativeSpacesRuntime {
     }
 
     func workspace(atDesktopIndex index: Int, on monitor: Monitor) -> Workspace? {
+        if coordinator?.state.pool != nil {
+            guard index > 0, let key = globalPoolKeys().getOrNil(atIndex: index - 1) else { return nil }
+            return winMuxWorkspaceState.workspaceById[WorkspaceId(rawValue: key)]
+        }
         guard index > 0, let coordinator, let topology = try? coordinator.driver.topology(),
               let display = display(for: monitor, in: topology),
               let desktop = display.spaces.filter(\.isUser).getOrNil(atIndex: index - 1),
@@ -267,6 +301,15 @@ final class NativeSpacesRuntime {
 
     func orderForPresentation(_ workspaces: [Workspace]) -> [Workspace] {
         guard let coordinator, let topology = try? coordinator.driver.topology() else { return workspaces }
+        if coordinator.state.pool != nil {
+            let keys = globalPoolKeys()
+            let ranks = Dictionary(uniqueKeysWithValues: keys.enumerated().map { ($0.element, $0.offset) })
+            return workspaces.enumerated().sorted {
+                let lhs = ranks[$0.element.id.rawValue] ?? Int.max
+                let rhs = ranks[$1.element.id.rawValue] ?? Int.max
+                return lhs == rhs ? $0.offset < $1.offset : lhs < rhs
+            }.map(\.element)
+        }
         var ranks: [WorkspaceId: Int] = [:]
         var rank = 0
         for display in topology.displays {
@@ -296,15 +339,16 @@ final class NativeSpacesRuntime {
         guard let coordinator,
               let binding = coordinator.state.bindings[workspace.id.rawValue],
               let snapshot = try? coordinator.driver.topology() else { return false }
-        return snapshot.displayContaining(binding.space)?.currentSpace == binding.space
+        return snapshot.displayContaining(binding.space)?.currentSpace == binding.space && (binding.spaceUUID.isEmpty || snapshot.desktop(binding.space)?.uuid == binding.spaceUUID)
     }
 
-    private func monitor(for display: NativeDisplaySnapshot) -> Monitor? {
+    func monitor(for display: NativeDisplaySnapshot) -> Monitor? {
+        if isUnitTest, let monitor = monitors.first(where: { $0.monitorAppKitNsScreenScreensId == Int(display.displayID) }) { return monitor }
         let point = CGDisplayBounds(display.displayID).origin
         return monitors.first { abs($0.rect.minX - point.x) < 1 && abs($0.rect.minY - point.y) < 1 }
     }
 
-    private func display(for monitor: Monitor, in topology: NativeSpaceTopology) -> NativeDisplaySnapshot? {
+    func display(for monitor: Monitor, in topology: NativeSpaceTopology) -> NativeDisplaySnapshot? {
         topology.displays.first { display in self.monitor(for: display)?.rect.topLeftCorner == monitor.rect.topLeftCorner }
     }
 }

@@ -218,6 +218,7 @@ func runLightSession<T>(
     // follow-up session in the middle of this light session. The post-refresh scheduled at
     // the end of the light session (or any later event) picks the pending request up instead.
     activeScheduledRefreshGeneration += 1
+    let checkpoint = native.isNative ? NativeLogicalCheckpoint() : nil
     try native.observeTopology()
     let focusSnapshot = captureRefreshSessionFocusSnapshot()
     debugFocusLog("runLightSession begin event=\(event) snapshot=\(debugDescribe(focusSnapshot))")
@@ -233,7 +234,6 @@ func runLightSession<T>(
                 let focusBefore = focus.windowOrNil
 
                 refreshModel()
-                let checkpoint = native.isNative ? NativeLogicalCheckpoint() : nil
                 native.beginModelChanges()
                 let result: T
                 do {

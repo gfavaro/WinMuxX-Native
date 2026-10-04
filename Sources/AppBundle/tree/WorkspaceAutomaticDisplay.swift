@@ -15,7 +15,10 @@ func automaticWorkspaceDisplayIndexFallback(_ workspaceName: String) -> Int? {
 
 @MainActor
 func scopedAutomaticDisplayWorkspaces(current: Workspace) -> [Workspace] {
-    orderedWorkspacesForPresentation()
+    if NativeSpacesRuntime.shared.coordinator?.state.pool != nil {
+        return NativeSpacesRuntime.shared.globalPoolKeys().compactMap { winMuxWorkspaceState.workspaceById[WorkspaceId($0)] }
+    }
+    return orderedWorkspacesForPresentation()
         .filter { $0.projectId == current.projectId }
         .filter { userFacingWorkspaces([$0], focusedWorkspace: current).contains($0) }
         .filter(\.usesAutomaticDisplayName)

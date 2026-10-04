@@ -21,3 +21,7 @@ Tabs and new tab behavior are outside this implementation scope. Inherited tab f
 ## Fixed reference and attribution
 
 Reference: mikker/Dinky commit `e05ae28f3e814bbae1cf171567be14e0dcba6548`. Read [the reviewed components and limitations](DINKY_NATIVE_SPACES_REVIEW.md), including source permalinks and MIT license link. Future incorporation must retain Dinky's copyright/license and source-level notices for mimi, yabai and other origins. The subsequent implementation incorporates a narrow, attributed Objective-C bridge; see [implementation notes](NATIVE_SPACES_IMPLEMENTATION.md). Symbol availability alone does not establish compatibility or successful operations; validate capabilities and fallback behavior per macOS version in the next stage.
+
+## Global-pool revision
+
+The accepted follow-up fixes an origin Space for each global workspace on the preferred main display and reuses one presentation Space per secondary. This supersedes retiring the old origin on each transfer. See [global pool](NATIVE_GLOBAL_POOL.md) for migration, topology and selection semantics.

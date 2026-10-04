@@ -14,6 +14,8 @@ final class NativeSpacesRuntimeTest: XCTestCase {
     override func setUp() async throws {
         NativeSpacesRuntime.shared.installForTests(nil)
         setUpWorkspacesForTests()
+        config.onFocusChanged = []
+        config.onFocusedMonitorChanged = []
         TrayMenuModel.shared.isEnabled = true
         source = focus.workspace
         target = Workspace.get(byName: "Native Target")

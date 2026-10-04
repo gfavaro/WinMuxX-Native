@@ -1,5 +1,7 @@
 # Experimental native Spaces implementation
 
+Build 6 replaces per-display pools with the [global pool model](NATIVE_GLOBAL_POOL.md). The global-pool document takes precedence over the earlier physical-association and local-numbering descriptions below.
+
 The native backend replaces workspace corner parking with real macOS desktop associations. Existing logical WorkspaceIds, project layout trees, sidebar controls, commands and navigation history remain the model. Inherited inactive tabs still use their existing behavior; no Space is created per tab.
 
 ## Requirements and startup

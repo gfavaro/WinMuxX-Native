@@ -7,9 +7,10 @@ import Foundation
 final class NativeSpaceCoordinator {
     let driver: any NativeSpaceDriver
     let store: NativeSpaceStore
-    private(set) var state: NativeSpaceState
-    private(set) var collectionError: String?
-    private let attempts: Int
+    var state: NativeSpaceState
+    var collectionError: String?
+    let attempts: Int
+    var fallbackPoolDisplay: String?
 
     init(driver: any NativeSpaceDriver, store: NativeSpaceStore, attempts: Int = 80) throws {
         self.driver = driver
@@ -26,11 +27,13 @@ final class NativeSpaceCoordinator {
 
     func replaceBindings(_ bindings: [String: NativeSpaceBinding]) throws {
         guard state.pending == nil else { throw NativeSpaceError.recoveryRequired("pending transaction") }
+        rekeyPool(to: bindings)
         state.bindings = bindings
         try store.save(state)
     }
 
     func synchronize(_ requests: [NativeWorkspaceRequest], activate: Set<String>) async throws {
+        if state.pool != nil { try await synchronizePool(requests, activate: activate); return }
         if state.pending != nil { try await recover() }
         let topology = try driver.topology()
         guard !topology.displays.isEmpty else { throw NativeSpaceError.topology("no connected displays") }
@@ -163,7 +166,7 @@ final class NativeSpaceCoordinator {
         }
     }
 
-    private func createEmpty(on display: String) async throws -> UInt64 {
+    func createEmpty(on display: String) async throws -> UInt64 {
         state.pending?.creatingOnDisplay = display
         try store.save(state)
         let id = try await driver.create(on: display)
@@ -171,7 +174,7 @@ final class NativeSpaceCoordinator {
             try self.driver.topology().display(display)?.spaces.contains { $0.id == id && $0.isUser } == true
         }
         let topology = try driver.topology()
-        guard let desktop = topology.desktop(id), desktop.isUser else { throw NativeSpaceError.topology("created Space missing") }
+        guard let desktop = topology.desktop(id), desktop.isUser, !desktop.uuid.isEmpty else { throw NativeSpaceError.topology("created Space missing") }
         let owned = NativeOwnedSpace(id: id, uuid: desktop.uuid, display: display)
         state.ownedSpaces.append(owned)
         state.pending?.createdSpaces.append(owned)
@@ -181,7 +184,7 @@ final class NativeSpaceCoordinator {
         return id
     }
 
-    private func transfer(_ windows: [NativeWindowIdentity], to destination: UInt64, preserveFullscreen: Bool = false) async throws {
+    func transfer(_ windows: [NativeWindowIdentity], to destination: UInt64, preserveFullscreen: Bool = false) async throws {
         guard try driver.topology().desktop(destination)?.isUser == true else { throw NativeSpaceError.topology("destination is not a desktop") }
         var moving: [UInt32] = []
         var indices: [Int] = []
@@ -213,7 +216,7 @@ final class NativeSpaceCoordinator {
         }
     }
 
-    private func assertEmpty(_ space: UInt64) throws {
+    func assertEmpty(_ space: UInt64) throws {
         guard try driver.occupants(space).isEmpty else { throw NativeSpaceError.topology("destination Space \(space) is occupied") }
     }
 
@@ -222,7 +225,9 @@ final class NativeSpaceCoordinator {
         var restored: Set<NativeWindowIdentity> = []
         for intent in transaction.transfers where restored.insert(intent.window).inserted {
             guard try driver.isAlive(intent.window) else { continue } // IDs are checked against PID and launch date.
-            guard let original = try driver.topology().desktop(intent.source), original.isUser,
+            let topology = try driver.topology()
+            let source = transaction.originalPool == nil ? intent.source : (topology.displays.flatMap(\.spaces).first { $0.uuid == intent.sourceUUID }?.id ?? intent.source)
+            guard let original = topology.desktop(source), original.isUser,
                   intent.sourceUUID.isEmpty || original.uuid == intent.sourceUUID else {
                 throw NativeSpaceError.recoveryRequired("original Space \(intent.source) is unavailable; reconnect the original display before retrying")
             }
@@ -230,10 +235,10 @@ final class NativeSpaceCoordinator {
             guard memberships.count == 1, try driver.topology().desktop(memberships[0])?.isUser == true else {
                 throw NativeSpaceError.unsafeWindow(intent.window.id)
             }
-            if memberships != [intent.source] {
-                try await driver.move([intent.window.id], to: intent.source)
+            if memberships != [source] {
+                try await driver.move([intent.window.id], to: source)
                 try await wait("recovery of window \(intent.window.id)") {
-                    try !self.driver.isAlive(intent.window) || self.driver.memberships(intent.window.id) == [intent.source]
+                    try !self.driver.isAlive(intent.window) || self.driver.memberships(intent.window.id) == [source]
                 }
             }
         }
@@ -242,7 +247,7 @@ final class NativeSpaceCoordinator {
             // Disconnected displays retain their journal; fullscreen originals are not
             // activated through a desktop-only recovery path.
             guard let connected = snapshot.display(display) else {
-                if transaction.transfers.isEmpty { continue }
+                if transaction.transfers.isEmpty || transaction.originalPool != nil { continue }
                 throw NativeSpaceError.recoveryRequired("display \(display) disconnected")
             }
             guard connected.currentSpace != original, snapshot.desktop(original)?.isUser == true else { continue }
@@ -250,6 +255,7 @@ final class NativeSpaceCoordinator {
             try await wait("recovery activation") { try self.driver.topology().display(display)?.currentSpace == original }
         }
         state.bindings = transaction.originalBindings
+        if let pool = transaction.originalPool { state.pool = pool }
         state.pending = nil
         try store.save(state)
     }
@@ -283,7 +289,7 @@ final class NativeSpaceCoordinator {
         try store.save(state)
     }
 
-    private func wait(_ description: String, until condition: () throws -> Bool) async throws {
+    func wait(_ description: String, until condition: () throws -> Bool) async throws {
         for _ in 0..<attempts {
             if try condition() { return }
             try await driver.pause()

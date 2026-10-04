@@ -59,6 +59,8 @@ private func resolveMoveTargetWorkspace(
     sourceMonitor: Monitor,
 ) -> Workspace? {
     if let targetIndex = parsePositiveWorkspaceDisplayIndex(workspaceName) {
+        if NativeSpacesRuntime.shared.coordinator?.state.pool != nil,
+           let workspace = NativeSpacesRuntime.shared.workspace(atDesktopIndex: targetIndex, on: sourceMonitor) { return workspace }
         if let workspace = scopedAutomaticDisplayWorkspaces(current: sourceWorkspace).getOrNil(atIndex: targetIndex - 1) {
             return workspace
         }

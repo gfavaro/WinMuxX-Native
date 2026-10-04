@@ -54,6 +54,7 @@ private func shouldIgnoreNativeFocusDuringProjectHold(_ nativeFocused: Window?) 
 ///                      (from nativeFocused to lastKnownNativeFocusedWindowId)
 /// Alternative names: takeFocusFromMacOs, syncFocusFromMacOs
 @MainActor func updateFocusCache(_ nativeFocused: Window?) {
+    if NativeSpacesRuntime.shared.hasPoolObservationChanges { return }
     if nativeFocused?.parent is MacosPopupWindowsContainer {
         return
     }

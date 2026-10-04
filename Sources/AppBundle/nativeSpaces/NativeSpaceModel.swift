@@ -69,6 +69,7 @@ struct NativeSpaceTransaction: Codable, Sendable {
     // an arbitrary new desktop as owned. Such an orphan is left for the user.
     var creatingOnDisplay: String?
     var createdSpaces: [NativeOwnedSpace] = []
+    var originalPool: NativeGlobalPool?
 }
 
 struct NativeSpaceState: Codable, Sendable {
@@ -78,6 +79,7 @@ struct NativeSpaceState: Codable, Sendable {
     var ownedSpaces: [NativeOwnedSpace] = []
     var pending: NativeSpaceTransaction?
     var deleting: NativeOwnedSpace?
+    var pool: NativeGlobalPool?
 }
 
 enum NativeSpaceError: LocalizedError {
@@ -137,8 +139,28 @@ enum NativeSpacePlanner {
               display.currentSpace != owned.id,
               display.spaces.filter(\.isUser).count > 1,
               !state.bindings.values.contains(where: { $0.space == owned.id }),
+              !(state.pool?.homes.values.contains(where: { $0.spaceUUID == owned.uuid }) ?? false),
+              !(state.pool?.carriers.values.contains(where: { $0.uuid == owned.uuid }) ?? false),
               occupants.isEmpty,
               state.pending == nil else { return false }
         return true
     }
+}
+
+/// References do not imply ownership. Ownership remains in NativeSpaceState.ownedSpaces.
+struct NativeSpaceReference: Equatable, Codable, Sendable {
+    var id: UInt64
+    var uuid: String
+    var display: String
+}
+
+struct NativeGlobalPool: Equatable, Codable, Sendable {
+    var preferredDisplay: String
+    var effectiveDisplay: String
+    var order: [String]
+    var homes: [String: NativeSpaceBinding]
+    var carriers: [String: NativeSpaceReference]
+    var retained: Set<String>
+    var active: [String: String] = [:]
+    var retiredUUIDs: Set<String> = []
 }

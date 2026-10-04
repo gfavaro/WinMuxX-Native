@@ -36,6 +36,7 @@ func buildDiagnosticsReport() async -> String {
     let appConflicts = otherTilingManagers(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier))
     let daemonConflicts = await runningDaemonTilers()
     let conflicts = Array(Set(appConflicts + daemonConflicts)).sorted()
+    for line in NativeSpacesRuntime.shared.poolDiagnostics() { io.out(line) }
     io.out("Other window managers:")
     io.out(conflicts.isEmpty ? "  none detected" : conflicts.map { "  WARNING: \($0) is running; window management may conflict" }.joined(separator: "\n"))
     io.out("  macOS automatically rearranges Spaces: \(dockDiagnosticSetting("mru-spaces"))")
