@@ -1,5 +1,11 @@
 # Global pool validation — native build 13
 
+## Compact Override follow-up — native build 15
+
+Build 15 (`52f7a90a`) fixes the confirmation control overflowing the collapsed sidebar: the compact variant uses a swap icon that fits the row, keeps the accessible name `Override`, and makes the whole label frame clickable. The expanded variant retains the text button and also accepts clicks throughout its padded area.
+
+The reported no-op was not reproduced through accessibility button activation in build 14: two swaps on the secondary sidebar succeeded and native membership probes confirmed their arrivals. Its screenshot did show a clipped confirmation/button, motivating the interaction fix. Build 15 was installed with its local signature verified, and Computer Use confirmed the compact control fits. Secondary-sidebar swaps in both directions succeeded; an isolated reverse-swap check preserved fixed homes and Space count, exchanged the active viewports, and verified all four application windows' actual memberships. `make check` passed 789 Swift tests and 13 Python tests. A raw coordinate-click attempt on the secondary display was rejected by Computer Use's window-position resolution; physical pointer behavior therefore still needs user confirmation.
+
 ## Numbering follow-up — native build 14
 
 Build 14 (`a8b444d1`) fixes inherited numeric names being displayed as desktop numbers: internal names `1, 5, 6, 3` now display as global workspaces `1, 2, 3, 4`, matching numeric selection. Custom sidebar labels remain unchanged. Menu command targets also use the global index for inherited numeric names.
