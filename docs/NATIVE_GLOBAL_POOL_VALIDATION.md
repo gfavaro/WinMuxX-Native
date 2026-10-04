@@ -1,5 +1,15 @@
 # Global pool validation — native build 13
 
+## Numbering follow-up — native build 14
+
+Build 14 (`a8b444d1`) fixes inherited numeric names being displayed as desktop numbers: internal names `1, 5, 6, 3` now display as global workspaces `1, 2, 3, 4`, matching numeric selection. Custom sidebar labels remain unchanged. Menu command targets also use the global index for inherited numeric names.
+
+An unowned principal desktop whose UUID was previously retired is adopted again, preventing an unmapped desktop from creating a Mission Control numbering gap. Owned staging desktops remain excluded. This recovery path has regression coverage; the extra empty desktop observed before the live update disappeared through the normal transient-workspace lifecycle before final validation.
+
+`make check` passed 789 Swift tests and 13 Python tests. Live build-14 checks confirmed all four global selections, two rounds through workspaces 2–4 on the secondary monitor, the Alt+2–4 binding handlers, and restoration of the initial active workspaces. Independent native window-membership probes matched logical placements throughout, with unchanged origin UUIDs and desktop count. A graceful restart preserved order, homes, carrier, active workspaces and topology. The sidebar was inspected through Computer Use and displayed `1, 2, 3, 4`; clicking an in-use workspace displayed its expected Override action. Physical keyboard interception remains unverified.
+
+The settled topology now has four principal origins and one secondary carrier. No manual deletion or rearrangement of Spaces was needed. The secondary carrier's Mission Control desktop number is its physical position across displays; it does not change to the global workspace number currently presented there.
+
 Validated on 2026-10-04, macOS 27.2, with a built-in main display and an external display, separate Spaces enabled, and Accessibility/screen-capture permissions granted. App code: `6581dd46`; earlier global-pool implementation begins at `8d99fbd9`. The local signed build is 0.5.6-13.
 
 `make check` passed: 786 Swift tests and 13 Python tests. Simulated coverage includes migration/backup, stable global numbering, reusable carriers, three-leg swaps, rollback, pending-intent restart recovery, disk failure, unknown occupants, fullscreen preflight, N+1, reboot ownership reset, rekeying, Mission Control override and preferred-display absence/return.
