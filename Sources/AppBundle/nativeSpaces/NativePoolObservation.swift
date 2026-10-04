@@ -71,7 +71,10 @@ extension NativeSpacesRuntime {
                 let knownHome = pool.homes.values.contains { $0.spaceUUID == desktop.uuid }
                 let knownPlacement = bindings.values.contains { $0.spaceUUID == desktop.uuid }
                 let owned = coordinator.state.ownedSpaces.contains { $0.uuid == desktop.uuid }
-                if knownHome || knownPlacement || owned || pool.retiredUUIDs.contains(desktop.uuid) { continue }
+                if knownHome || knownPlacement || owned { continue }
+                if pool.retiredUUIDs.contains(desktop.uuid) && physical.uuid != primary.uuid { continue }
+                // A retired origin that still exists without app ownership is a real
+                // principal desktop again. Leaving it out creates a numbering gap.
                 // All principal desktops are pool entries. Secondary empty hidden desktops stay external.
                 if physical.uuid != primary.uuid && desktop.id != physical.currentSpace {
                     if try coordinator.driver.occupants(desktop.id).isEmpty { continue }
@@ -83,6 +86,7 @@ extension NativeSpacesRuntime {
                 bindings[binding.workspace] = binding
                 pool.order.append(binding.workspace)
                 pool.retained.insert(binding.workspace)
+                pool.retiredUUIDs.remove(desktop.uuid)
                 if physical.uuid == primary.uuid { pool.homes[binding.workspace] = binding }
                 changed = true
             }

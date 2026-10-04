@@ -1,6 +1,11 @@
 import Common
 
 @MainActor
+func usesNativePoolNumber(_ workspace: Workspace) -> Bool {
+    NativeSpacesRuntime.shared.coordinator?.state.pool != nil && parsePositiveWorkspaceDisplayIndex(workspace.name) != nil
+}
+
+@MainActor
 func nextSidebarDraftWorkspaceName() -> String {
     clearOrphanedWorkspaceSidebarLabels()
     let nextIndex = lowestUnusedPositiveIndex(Set(winMuxWorkspaceState.workspaceIdByName.keys.compactMap(sidebarDraftWorkspaceIndex)))
@@ -48,6 +53,11 @@ func clearOrphanedWorkspaceSidebarLabels() {
 @MainActor
 func workspaceDefaultDisplayName(_ workspaceName: String) -> String {
     if let workspace = Workspace.existing(byName: workspaceName) {
+        // Numeric names from the pre-pool state are identifiers, not desktop numbers.
+        if usesNativePoolNumber(workspace),
+           let index = NativeSpacesRuntime.shared.desktopIndex(workspace) {
+            return "Workspace \(index)"
+        }
         guard workspace.usesAutomaticDisplayName else { return workspaceName }
         if let index = automaticWorkspaceDisplayIndex(workspace, focusedWorkspace: focus.workspace)
             ?? automaticWorkspaceDisplayIndexFallback(workspaceName)

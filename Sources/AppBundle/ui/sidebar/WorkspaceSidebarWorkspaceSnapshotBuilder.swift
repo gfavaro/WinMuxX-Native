@@ -29,7 +29,7 @@ private func makeWorkspaceSidebarWorkspaceViewModel(
         projectId: workspace.projectId,
         displayName: workspaceDisplayName(workspace.name),
         sidebarLabel: workspaceLabels[workspace.name] ?? "",
-        isGeneratedName: isSidebarDraftWorkspaceName(workspace.name) || workspace.usesAutomaticDisplayName,
+        isGeneratedName: isSidebarDraftWorkspaceName(workspace.name) || workspace.usesAutomaticDisplayName || usesNativePoolNumber(workspace),
         monitorScopeId: workspaceSidebarMonitorScopeId(for: workspaceMonitor),
         monitorName: availableMonitors.count > 1 ? workspaceMonitor.name : nil,
         isFocused: currentFocus.workspace == workspace,

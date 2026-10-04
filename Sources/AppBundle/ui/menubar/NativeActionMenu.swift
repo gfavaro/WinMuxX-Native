@@ -297,7 +297,7 @@ func menuWorkspaceTargets() -> [(workspace: Workspace, target: String)] {
     userFacingWorkspaces(orderedWorkspacesForPresentation(), focusedWorkspace: focus.workspace)
         .filter { $0.projectId == focus.workspace.projectId }
         .map { workspace in
-            let target = workspace.usesAutomaticDisplayName
+            let target = workspace.usesAutomaticDisplayName || usesNativePoolNumber(workspace)
                 ? automaticWorkspaceDisplayIndex(workspace, focusedWorkspace: focus.workspace).map(String.init) ?? workspace.name
                 : workspace.name
             return (workspace, target)

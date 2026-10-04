@@ -80,6 +80,44 @@ final class NativePoolRuntimeTest: XCTestCase {
         XCTAssertEqual(driver.windows[12], [engine.state.pool!.homes[b.id.rawValue]!.space])
     }
 
+    func testExplicitNumericNamesDisplayGlobalIndexButCustomLabelsSurvive() {
+        c.restoreNamingStyle(.explicit)
+        XCTAssertEqual(workspaceDefaultDisplayName(c.name), "Workspace 2")
+        XCTAssertTrue(usesNativePoolNumber(c))
+        XCTAssertEqual(menuWorkspaceTargets().first { $0.workspace === c }?.target, "2")
+        config.workspaceSidebar.workspaceLabels[c.name] = "Research"
+        XCTAssertEqual(workspaceDisplayName(c.name), "Research")
+        config.workspaceSidebar.workspaceLabels.removeValue(forKey: c.name)
+    }
+
+    func testRetiredUnownedPrincipalDesktopIsAdoptedWithoutNumberingGap() throws {
+        let display = driver.snapshot.displays[0]
+        driver.snapshot.displays[0] = NativeDisplaySnapshot(uuid: display.uuid, displayID: display.displayID,
+            currentSpace: display.currentSpace, spaces: [display.spaces[0], NativeDesktop(id: 8, uuid: "returned", isUser: true)] + Array(display.spaces.dropFirst()))
+        engine.state.pool?.retiredUUIDs.insert("returned")
+        driver.actions = []
+        try NativeSpacesRuntime.shared.observeTopology()
+        let binding = try XCTUnwrap(engine.state.bindings.values.first { $0.spaceUUID == "returned" })
+        let workspace = try XCTUnwrap(Workspace.existing(byName: binding.name))
+        XCTAssertEqual(NativeSpacesRuntime.shared.desktopIndex(workspace), 2)
+        XCTAssertEqual(NativeSpacesRuntime.shared.desktopIndex(c), 3)
+        XCTAssertFalse(engine.state.pool!.retiredUUIDs.contains("returned"))
+        XCTAssertTrue(driver.actions.isEmpty)
+        let count = engine.state.bindings.count
+        try NativeSpacesRuntime.shared.observeTopology()
+        XCTAssertEqual(engine.state.bindings.count, count)
+    }
+
+    func testRetiredOwnedStagingDesktopIsNotAdopted() throws {
+        let display = driver.snapshot.displays[0]
+        driver.snapshot.displays[0] = NativeDisplaySnapshot(uuid: display.uuid, displayID: display.displayID,
+            currentSpace: display.currentSpace, spaces: display.spaces + [NativeDesktop(id: 8, uuid: "staging", isUser: true)])
+        engine.state.pool?.retiredUUIDs.insert("staging")
+        engine.state.ownedSpaces.append(NativeOwnedSpace(id: 8, uuid: "staging", display: "left"))
+        try NativeSpacesRuntime.shared.observeTopology()
+        XCTAssertNil(engine.state.bindings.values.first { $0.spaceUUID == "staging" })
+    }
+
     func testOrdinarySelectionFollowsAlreadyVisibleWorkspaceWithoutSwap() async throws {
         driver.actions = []
         try await command("workspace --monitor Main 3")
