@@ -260,7 +260,10 @@ final class NativeSpacesRuntime {
                 }
             }
         }
-        let task = Task { @MainActor in try await coordinator.synchronize(requests, activate: activate) }
+        let task = Task { @MainActor in
+            if !isUnitTest { try await MacApp.finishPendingLayoutBeforeNativeTransition() }
+            try await coordinator.synchronize(requests, activate: activate)
+        }
         nativeTask = task
         defer { nativeTask = nil }
         do {

@@ -219,6 +219,19 @@ final class MacApp: AbstractApp {
     }
 
     @MainActor
+    static func finishPendingLayoutBeforeNativeTransition() async throws {
+        focusJob?.cancel()
+        focusJob = nil
+        let apps = Array(allAppsMap.values)
+        for app in apps { app.cancelPendingFrameWrites() }
+        // Cancellation stops queued jobs. A barrier also waits for an AX call
+        // already executing, so its old display geometry cannot undo a Space move.
+        for app in apps {
+            try await app.thread?.runInLoop { _ in () }
+        }
+    }
+
+    @MainActor
     func cancelPendingFrameWrites() {
         for job in setFrameJobs.values { job.cancel() }
         setFrameJobs.removeAll()
