@@ -1,5 +1,13 @@
 # Global pool validation — native build 13
 
+## Repeated swaps and occupied-origin recovery — native build 17
+
+Extended build-16 validation exercised 12 expanded Override activations, including six with Safari and ChatGPT sharing a workspace, plus four cancellations. Native membership probes, homes, active viewports and desktop count matched at the end of each group. The repeat loops used a temporary always-expanded configuration, restored byte-for-byte afterward.
+
+A subsequent restart exposed a separate failure: an occupied hidden workspace could be pruned before AX discovered its windows, retiring its original home and allocating a new one when the saved tree was restored. Build 17 (`a626f31b`) retains physically occupied native placements/origins while their logical tree is empty; an occupant-query failure also prevents unsafe pruning. A regression test covers startup-like undiscovered windows and confirms genuinely empty owned origins remain eligible for collection. `make check` passed 790 Swift tests and 13 Python tests.
+
+The signed build 17 was installed and two launches preserved the occupied hidden origin's UUID, all other homes, order, carriers, active workspaces, desktop count and all four native window memberships. An additional expanded Override round trip on the secondary sidebar passed with the normal compact/resting configuration, and the initial active viewports were restored. Restart assertions compare persistent project/name and native UUID identities; per-session logical IDs may legitimately be rekeyed. Local observations are in the ignored `.release-native/override-stress-build17.json`. Coordinate mouse injection remains unavailable for these panels through Computer Use, so these checks establish accessibility button activation, not physical pointer interception.
+
 ## Expanded Override follow-up — native build 16
 
 Build 16 (`85eb62f3`) keeps a temporarily expanded sidebar open while its Override confirmation is pending and releases the collapse lock on confirmation, cancellation or view removal. Expanded confirmations have a Cancel action. The underlying section activation button is removed while the confirmation is shown, and decorative overlay layers do not intercept pointer events.
