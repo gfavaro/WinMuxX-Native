@@ -1,5 +1,13 @@
 # Global pool validation — native build 13
 
+## Single secondary desktop — native build 18
+
+Build 18 (`d6081b9b`) fixes the carrier when a manually created secondary desktop is selected. Its workspace is absorbed into the global pool, its windows move into the existing carrier, and empty secondary extras are deleted after synchronization. Deletion intent is persisted without claiming external ownership; UUID, membership, current desktop, carrier and origin guards are rechecked before removal. Unreconciled content defers cleanup with a diagnostic, and fullscreen Spaces are excluded.
+
+`make check` passed 793 Swift tests and 13 Python tests. Regression coverage verifies removal of empty external secondary extras, preservation of primary/fullscreen desktops and unknown content, and absorption of an occupied selected extra while returning the outgoing workspace home.
+
+The installed, signed build consolidated the user's two ordinary secondary desktops to the existing active carrier (578), removing the empty former carrier (424). All six main-origin UUIDs and all four application windows were preserved. Five secondary selections before restart and five afterward reused the same sole secondary desktop; restart preserved the topology. The first sequence revealed Safari attached to a different logical workspace by the final probe; it was restored to its original workspace, and the second sequence explicitly verified logical owners after every selection with no change. The cause of that first observation remains unestablished. Machine-specific before/after snapshots are in the ignored `.release-native/secondary-consolidation-build18.json`.
+
 ## Repeated swaps and occupied-origin recovery — native build 17
 
 Extended build-16 validation exercised 12 expanded Override activations, including six with Safari and ChatGPT sharing a workspace, plus four cancellations. Native membership probes, homes, active viewports and desktop count matched at the end of each group. The repeat loops used a temporary always-expanded configuration, restored byte-for-byte afterward.
