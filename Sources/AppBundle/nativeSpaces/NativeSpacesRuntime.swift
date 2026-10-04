@@ -146,6 +146,17 @@ final class NativeSpacesRuntime {
 
     func retainsExternalDesktop(_ workspace: Workspace) -> Bool {
         if coordinator?.state.pool?.retained.contains(workspace.id.rawValue) == true { return true }
+        // Hidden windows can arrive through AX after startup reconciliation. Do not
+        // prune their logical workspace and retire its origin while it still has content.
+        if !workspaceHasLifecycleWindows(workspace), let coordinator, let pool = coordinator.state.pool {
+            let placements = [coordinator.state.bindings[workspace.id.rawValue], pool.homes[workspace.id.rawValue]].compactMap { $0 }
+            guard let topology = try? coordinator.driver.topology() else { return true }
+            for placement in placements {
+                guard topology.desktop(placement.space)?.uuid == placement.spaceUUID else { continue }
+                guard let occupants = try? coordinator.driver.occupants(placement.space) else { return true }
+                if !occupants.isEmpty { return true }
+            }
+        }
         guard let coordinator,
               let binding = coordinator.state.bindings[workspace.id.rawValue],
               (!coordinator.state.ownedSpaces.contains(where: { $0.id == binding.space && $0.uuid == binding.spaceUUID }) || retainedStartupDesktopUUIDs.contains(binding.spaceUUID)),

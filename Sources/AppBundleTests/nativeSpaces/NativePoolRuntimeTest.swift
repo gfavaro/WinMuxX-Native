@@ -80,6 +80,20 @@ final class NativePoolRuntimeTest: XCTestCase {
         XCTAssertEqual(driver.windows[12], [engine.state.pool!.homes[b.id.rawValue]!.space])
     }
 
+    func testHiddenOwnedOriginSurvivesBeforeAccessibilityWindowsAreDiscovered() throws {
+        engine.state.pool?.retained.remove(c.id.rawValue)
+        engine.state.ownedSpaces.append(NativeOwnedSpace(id: 3, uuid: "three", display: "left"))
+        _ = Window.get(byId: 13)?.unbindFromParent()
+        XCTAssertFalse(workspaceHasLifecycleWindows(c))
+        XCTAssertEqual(driver.windows[13], [3])
+        XCTAssertTrue(NativeSpacesRuntime.shared.retainsExternalDesktop(c))
+        XCTAssertTrue(workspaceShouldSurviveReconciliation(c, retainedEmptyWorkspaceIds: [:]))
+        pruneEmptyWorkspaces()
+        XCTAssertTrue(Workspace.existing(byName: c.name) === c)
+        driver.windows[13] = []
+        XCTAssertFalse(NativeSpacesRuntime.shared.retainsExternalDesktop(c))
+    }
+
     func testExplicitNumericNamesDisplayGlobalIndexButCustomLabelsSurvive() {
         c.restoreNamingStyle(.explicit)
         XCTAssertEqual(workspaceDefaultDisplayName(c.name), "Workspace 2")
