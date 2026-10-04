@@ -89,6 +89,24 @@ final class NativePoolRuntimeTest: XCTestCase {
         XCTAssertFalse(driver.actions.contains { $0.hasPrefix("move:") || $0.hasPrefix("create:") })
     }
 
+    func testExplicitMoveFocusesIncomingWhenItHidesThePreviouslyFocusedWorkspace() async throws {
+        _ = b.focusWorkspace()
+        try await command("move-workspace-to-monitor --workspace 1 Secondary")
+        XCTAssertTrue(secondary.activeWorkspace === a)
+        XCTAssertFalse(b.isVisible)
+        XCTAssertTrue(focus.workspace === a)
+        XCTAssertEqual(driver.windows[11], [2])
+        XCTAssertEqual(driver.windows[12], [engine.state.pool!.homes[b.id.rawValue]!.space])
+        // A delayed AX focus event from the outgoing window cannot reselect it.
+        updateFocusCache(Window.get(byId: 12))
+        XCTAssertTrue(focus.workspace === a)
+        XCTAssertFalse(b.isVisible)
+        try await runLightSession(.menuBarButton, .forceRun, shouldSchedulePostRefresh: false) {}
+        XCTAssertTrue(secondary.activeWorkspace === a)
+        XCTAssertEqual(driver.windows[11], [2])
+        XCTAssertEqual(driver.windows[12], [engine.state.pool!.homes[b.id.rawValue]!.space])
+    }
+
     func testMissionControlSelectingBorrowedHomePerformsOverride() async throws {
         let homeB = engine.state.pool!.homes[b.id.rawValue]!.space
         try await driver.activate(homeB, on: "left")

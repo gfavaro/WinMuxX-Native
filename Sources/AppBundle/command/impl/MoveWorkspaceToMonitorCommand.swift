@@ -16,6 +16,9 @@ struct MoveWorkspaceToMonitorCommand: Command {
                     return true
                 }
                 if activateWorkspaceOnMonitorPreservingSourceViewport(focusedWorkspace, targetMonitor: targetMonitor) {
+                    if NativeSpacesRuntime.shared.isNative && !focus.workspace.isVisible {
+                        return focusedWorkspace.focusWorkspace()
+                    }
                     return true
                 } else {
                     return io.err(

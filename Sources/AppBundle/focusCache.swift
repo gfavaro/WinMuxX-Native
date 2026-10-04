@@ -55,6 +55,14 @@ private func shouldIgnoreNativeFocusDuringProjectHold(_ nativeFocused: Window?) 
 /// Alternative names: takeFocusFromMacOs, syncFocusFromMacOs
 @MainActor func updateFocusCache(_ nativeFocused: Window?) {
     if NativeSpacesRuntime.shared.hasPoolObservationChanges { return }
+    if NativeSpacesRuntime.shared.coordinator?.state.pool != nil,
+       let workspace = nativeFocused?.visualWorkspace, !workspace.isVisible {
+        // AX can still report the outgoing focused window after its Space move.
+        // Native topology is observed first; a genuine desktop activation has
+        // already made its workspace visible, whereas this stale focus must wait.
+        lastKnownNativeFocusedWindowId = nil
+        return
+    }
     if nativeFocused?.parent is MacosPopupWindowsContainer {
         return
     }
