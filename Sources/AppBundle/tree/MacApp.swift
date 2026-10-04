@@ -1,5 +1,6 @@
 import AppKit
 import Common
+import NativeSpacesPrivate
 
 // Potential alternative implementation
 // https://github.com/swiftlang/swift-evolution/blob/main/proposals/0392-custom-actor-executors.md
@@ -426,6 +427,7 @@ final class MacApp: AbstractApp {
             return []
         }
         guard let thread else { return [] }
+        let preserveNativeWindows = await MainActor.run { NativeSpacesRuntime.shared.isNative }
         let (alive, dead) = try await thread.runInLoop { [nsApp, windows, axApp] (job) -> ([UInt32], [UInt32]) in
             var alive: [UInt32: AxWindow] = windows.threadGuarded
             var dead = [UInt32: AxWindow]()
@@ -436,6 +438,11 @@ final class MacApp: AbstractApp {
                     try job.checkCancellation()
                     let (windowId, error) = $0.value.ax.containingWindowIdWithError()
                     if windowId != nil { return true }
+                    // Space transitions can temporarily invalidate AX's window-ID
+                    // lookup without closing the WindowServer window. Keep its tree
+                    // and workspace until independent ownership confirms its death.
+                    if preserveNativeWindows,
+                       winmux_native_window_owner_pid($0.key)?.int32Value == nsApp.processIdentifier { return true }
                     // .cannotComplete means the app didn't answer (CPU-starved or briefly
                     // unresponsive), not that the window is gone. Treating it as death made
                     // a busy app's windows get GC'd and later re-detected as new windows
