@@ -1,5 +1,11 @@
 # Global pool validation — native build 13
 
+## Expanded Override follow-up — native build 16
+
+Build 16 (`85eb62f3`) keeps a temporarily expanded sidebar open while its Override confirmation is pending and releases the collapse lock on confirmation, cancellation or view removal. Expanded confirmations have a Cancel action. The underlying section activation button is removed while the confirmation is shown, and decorative overlay layers do not intercept pointer events.
+
+During build-15 reproduction, the temporary expansion collapsed between opening the confirmation and activating Override, invalidating its accessibility element. With `always-expanded` temporarily enabled, expanded swaps succeeded in both directions. That configuration change was restored byte-for-byte. Build 16 was tested with the original compact/resting configuration: the secondary expanded confirmation remained visible across independent inspections, Override swapped the active viewports, and Cancel dismissed the confirmation without changing native placements. Independent probes verified all four application windows, fixed homes and unchanged Space count; the initial active workspaces were restored. `make check` passed 789 Swift tests and 13 Python tests. The signed build was installed. Raw coordinate input remains unavailable for these panels in Computer Use, so physical pointer validation remains a limitation.
+
 ## Compact Override follow-up — native build 15
 
 Build 15 (`52f7a90a`) fixes the confirmation control overflowing the collapsed sidebar: the compact variant uses a swap icon that fits the row, keeps the accessible name `Override`, and makes the whole label frame clickable. The expanded variant retains the text button and also accepts clicks throughout its padded area.
