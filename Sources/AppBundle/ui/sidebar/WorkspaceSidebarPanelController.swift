@@ -29,6 +29,7 @@ final class WorkspaceSidebarPanel: NSPanelHud {
     var inlineTextEditingStartedAt: Date = .distantPast
     var inlineTextEditingPointerEnteredVisibleRegion = false
     var commandExpansionLocksCollapse = false
+    var overrideConfirmationLocksCollapse = false
     var shouldLockNextSidebarSearchExpansion = false
     var bufferedCommandSidebarSearchKeys: [WorkspaceSidebarInlineTextKey] = []
     var commandMouseUnlockPoint: CGPoint?

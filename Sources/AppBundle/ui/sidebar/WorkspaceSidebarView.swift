@@ -100,6 +100,18 @@ struct WorkspaceSidebarView: View {
             finishSidebarSearch(clearText: true)
             resetProjectSwipeWithoutAnimation()
         }
+        .onChange(of: activeInUseOverrideWorkspaceName) { name in
+            guard let panel = WorkspaceSidebarPanel.panel(for: snapshot.targetMonitorScopeId) else { return }
+            panel.overrideConfirmationLocksCollapse = name != nil && snapshot.visibleWidth > collapsedWidth + 0.5
+            if panel.overrideConfirmationLocksCollapse {
+                panel.cancelExpansionWork()
+            } else {
+                panel.scheduleHoverRecheckSoon()
+            }
+        }
+        .onDisappear {
+            WorkspaceSidebarPanel.panel(for: snapshot.targetMonitorScopeId)?.overrideConfirmationLocksCollapse = false
+        }
         .onChange(of: browseMode) { mode in
             guard snapshot.visibleWidth > collapsedWidth + 0.5,
                   let panel = WorkspaceSidebarPanel.panel(for: snapshot.targetMonitorScopeId)

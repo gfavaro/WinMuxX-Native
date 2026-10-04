@@ -5,6 +5,7 @@ struct WorkspaceSidebarInUseOverrideOverlay: View {
     let text: String
     var isCompact = false
     let onOverride: () -> Void
+    var onCancel: () -> Void = {}
     @State private var isOverrideHovered = false
 
     private var shape: RoundedRectangle {
@@ -19,8 +20,10 @@ struct WorkspaceSidebarInUseOverrideOverlay: View {
                     shape.fill(Color(nsColor: .systemRed).opacity(0.14))
                 }
                 .clipShape(shape)
+                .allowsHitTesting(false)
 
             shape.strokeBorder(Color(nsColor: .systemRed).opacity(0.45), lineWidth: 0.8)
+                .allowsHitTesting(false)
 
             VStack(spacing: 8) {
                 if !isCompact {
@@ -32,34 +35,41 @@ struct WorkspaceSidebarInUseOverrideOverlay: View {
                         .padding(.horizontal, 12)
                 }
 
-                Button(action: onOverride) {
-                    Group {
-                        if isCompact {
-                            Image(systemName: "arrow.left.arrow.right")
-                                .frame(maxWidth: .infinity, minHeight: 28)
-                        } else {
-                            Text("Override")
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 4)
+                HStack(spacing: 10) {
+                    Button(action: onOverride) {
+                        Group {
+                            if isCompact {
+                                Image(systemName: "arrow.left.arrow.right")
+                                    .frame(maxWidth: .infinity, minHeight: 28)
+                            } else {
+                                Text("Override")
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 4)
+                            }
                         }
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(Color.white)
+                        .contentShape(Rectangle())
                     }
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(Color.white)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Override")
-                .help(text + ". Swap workspaces between displays.")
-                .background {
-                    RoundedRectangle(cornerRadius: 5, style: .continuous)
-                        .fill(Color(nsColor: .systemRed).opacity(isOverrideHovered ? 1 : 0.88))
-                }
-                .overlay {
-                    RoundedRectangle(cornerRadius: 5, style: .continuous)
-                        .strokeBorder(sidebarColors.foreground.opacity(isOverrideHovered ? 0.28 : 0), lineWidth: 0.6)
-                }
-                .onHover { hovering in
-                    isOverrideHovered = hovering
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Override")
+                    .help(text + ". Swap workspaces between displays.")
+                    .background {
+                        RoundedRectangle(cornerRadius: 5, style: .continuous)
+                            .fill(Color(nsColor: .systemRed).opacity(isOverrideHovered ? 1 : 0.88))
+                    }
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 5, style: .continuous)
+                            .strokeBorder(sidebarColors.foreground.opacity(isOverrideHovered ? 0.28 : 0), lineWidth: 0.6)
+                    }
+                    .onHover { hovering in
+                        isOverrideHovered = hovering
+                    }
+                    if !isCompact {
+                        Button("Cancel", action: onCancel)
+                            .font(.system(size: 10))
+                            .buttonStyle(.plain)
+                    }
                 }
             }
             .padding(isCompact ? 4 : 10)
